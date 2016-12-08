@@ -21,6 +21,10 @@ import com.google.android.gms.common.api.Status;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import edu.hsb.wifivisualizer.R;
+import edu.hsb.wifivisualizer.calculation.IDelaunayService;
+import edu.hsb.wifivisualizer.calculation.IIsoService;
+import edu.hsb.wifivisualizer.calculation.impl.SimpleDelauneyService;
+import edu.hsb.wifivisualizer.calculation.impl.SimpleIsoService;
 
 public class MapFragment extends Fragment implements ILocationListener {
 
@@ -32,6 +36,8 @@ public class MapFragment extends Fragment implements ILocationListener {
 
     private IMapService mapService;
     private GoogleLocationProvider googleLocationProvider;
+    private IDelaunayService delaunayService;
+    private IIsoService isoService;
 
     private Location currentLocation;
     private Snackbar locationSnackbar;
@@ -53,6 +59,8 @@ public class MapFragment extends Fragment implements ILocationListener {
         ButterKnife.bind(this, view);
         mapService = new GoogleMapService(this);
         googleLocationProvider = new GoogleLocationProvider(this.getContext());
+        delaunayService = new SimpleDelauneyService();
+        isoService = new SimpleIsoService();
         buildSnackbars();
         checkLocationPermission();
     }
