@@ -3,6 +3,7 @@ package edu.hsb.wifivisualizer.map;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
 
@@ -14,6 +15,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.collect.Maps;
 
 import java.util.Collections;
@@ -24,9 +26,13 @@ import java.util.Random;
 import bolts.Continuation;
 import bolts.Task;
 import edu.hsb.wifivisualizer.DatabaseTaskController;
+import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
+import edu.hsb.wifivisualizer.calculation.IDelaunayService;
+import edu.hsb.wifivisualizer.calculation.impl.SimpleDelauneyService;
 import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.model.Point;
+import edu.hsb.wifivisualizer.model.Triangle;
 
 public class GoogleMapService implements IMapService, OnMapReadyCallback {
 
@@ -38,10 +44,13 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     private Map<Marker, Point> markerMap;
     private boolean zoomIn = Boolean.TRUE;
 
+    private IDelaunayService delaunayService;
+
     public GoogleMapService(Fragment fragment) {
         this.fragment = fragment;
         final DaoSession daoSession = ((WifiVisualizerApp) fragment.getActivity().getApplication()).getDaoSession();
         dbController = new DatabaseTaskController(daoSession);
+        delaunayService = new SimpleDelauneyService();
     }
 
     @Override
@@ -66,7 +75,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             MapsInitializer.initialize(fragment.getContext());
             setClickListener();
             setDragListener();
-            loadPoints();
+            recalculate();
         } catch (SecurityException e) {
             Log.e(this.getClass().getSimpleName(), "Could not acquire phone location.");
         }
@@ -102,20 +111,17 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             public void onMapLongClick(LatLng latLng) {
                 final int randomStrength = new Random().nextInt(MAX_SIGNAL_STRENGTH) + 1;
                 final Point point = new Point(null, latLng, randomStrength);
-                final MarkerOptions markerOptions = createMarkerOptions(point);
-                final Marker marker = map.addMarker(markerOptions);
 
                 // Save Point in db
                 dbController.savePoint(point).onSuccess(new Continuation<Point, Void>() {
                     @Override
                     public Void then(Task<Point> task) throws Exception {
-                        markerMap.put(marker, task.getResult());
+                        recalculate();
                         return null;
                     }
-                });
+                }, Task.UI_THREAD_EXECUTOR);
             }
         });
-
     }
 
     private void setDragListener() {
@@ -128,12 +134,22 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             public void onMarkerDragEnd(Marker marker) {
                 final Point point = markerMap.get(marker);
                 if (point != null) {
-                    markerMap.remove(marker);
-                    dbController.removePoint(point);
-                    marker.remove();
+                    dbController.removePoint(point).onSuccess(new Continuation<Void, Void>() {
+                        @Override
+                        public Void then(Task<Void> task) throws Exception {
+                            recalculate();
+                            return null;
+                        }
+                    }, Task.UI_THREAD_EXECUTOR);
                 }
             }
         });
+    }
+
+    private void recalculate() {
+        map.clear();
+        calculateTriangulation();
+        loadPoints();
     }
 
     private void loadPoints() {
@@ -147,5 +163,31 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                 return null;
             }
         }, Task.UI_THREAD_EXECUTOR);
+    }
+
+    private void calculateTriangulation() {
+        dbController.getPointList().onSuccess(new Continuation<List<Point>, Void>() {
+            @Override
+            public Void then(Task<List<Point>> task) throws Exception {
+                final List<Triangle> calculate = delaunayService.calculate(task.getResult());
+                for (Triangle triangle : calculate) {
+                    drawTriangle(triangle);
+                }
+                return null;
+            }
+        }, Task.UI_THREAD_EXECUTOR);
+    }
+
+    private void drawTriangle(@NonNull Triangle triangle) {
+        if (map != null) {
+            final int color = ContextCompat.getColor(fragment.getContext(), R.color.colorAccent);
+            final PolylineOptions polylineOptions = new PolylineOptions();
+            polylineOptions.visible(Boolean.TRUE);
+            polylineOptions.color(color);
+            for (Point point : triangle.getDefiningPointList()) {
+                polylineOptions.add(point.getPosition());
+            }
+            map.addPolyline(polylineOptions);
+        }
     }
 }
