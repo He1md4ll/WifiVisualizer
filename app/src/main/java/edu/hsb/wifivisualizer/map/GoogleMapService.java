@@ -6,7 +6,12 @@ import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 
+import com.github.mikephil.charting.charts.HorizontalBarChart;
+import com.github.mikephil.charting.data.BarData;
+import com.github.mikephil.charting.data.BarDataSet;
+import com.github.mikephil.charting.data.BarEntry;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapsInitializer;
@@ -16,12 +21,14 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -33,6 +40,7 @@ import edu.hsb.wifivisualizer.calculation.impl.SimpleDelauneyService;
 import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
+import edu.hsb.wifivisualizer.model.WifiInfo;
 
 public class GoogleMapService implements IMapService, OnMapReadyCallback {
 
@@ -75,6 +83,44 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             MapsInitializer.initialize(fragment.getContext());
             setClickListener();
             setDragListener();
+            map.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
+                @Override
+                public View getInfoWindow(Marker marker) {
+                    return null;
+                }
+
+                @Override
+                public View getInfoContents(Marker marker) {
+                    final Point point = markerMap.get(marker);
+                    final List<WifiInfo> wifiInfoList = point.getSignalStrength();
+                    final View v = fragment.getLayoutInflater(null).inflate(R.layout.marker_info_window, null);
+                    final TextView caption = (TextView) v.findViewById(R.id.marker_caption);
+                    final HorizontalBarChart barChart = (HorizontalBarChart) v.findViewById(R.id.marker_chart);
+
+                    caption.setText("Found information for " + wifiInfoList.size() + " wifi networks");
+                    List<BarEntry> barEntryList = Lists.newArrayList();
+                    for (WifiInfo wifiInfo : wifiInfoList) {
+                            barEntryList.add(new BarEntry(barEntryList.size() ,wifiInfo.getStrength() * -1, wifiInfo.getSsid()));
+                    }
+                    final BarDataSet barDataSet = new BarDataSet(barEntryList, "Wifi data");
+                    barDataSet.setDrawValues(true);
+                    barDataSet.setColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary));
+                    barDataSet.setValueTextColor(ContextCompat.getColor(fragment.getContext(), R.color.colorAccent));
+                    final BarData barData = new BarData(barDataSet);
+                    barData.setDrawValues(true);
+                    barChart.setData(barData);
+                    barChart.getDescription().setEnabled(false);
+                    barChart.getXAxis().setEnabled(false);
+                    barChart.setMaxVisibleValueCount(wifiInfoList.size());
+
+                    //Disable all interaction with the chart
+                    barChart.setHighlightPerTapEnabled(false);
+                    barChart.setHighlightPerDragEnabled(false);
+                    barChart.setDoubleTapToZoomEnabled(false);
+                    barChart.invalidate();
+                    return v;
+                }
+            });
             recalculate();
         } catch (SecurityException e) {
             Log.e(this.getClass().getSimpleName(), "Could not acquire phone location.");
@@ -109,19 +155,31 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         map.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                final int randomStrength = new Random().nextInt(MAX_SIGNAL_STRENGTH) + 1;
-                final Point point = new Point(null, latLng, randomStrength);
-
+                final Point point = new Point(null, latLng);
                 // Save Point in db
-                dbController.savePoint(point).onSuccess(new Continuation<Point, Void>() {
+                dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                     @Override
-                    public Void then(Task<Point> task) throws Exception {
+                    public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
+                        final Point result = task.getResult();
+                        return dbController.saveWifiInfoList(randomWifiInfoList(result.getId()));
+                    }
+                }).onSuccess(new Continuation<List<WifiInfo>, Void>() {
+                    @Override
+                    public Void then(Task<List<WifiInfo>> task) throws Exception {
                         recalculate();
                         return null;
                     }
                 }, Task.UI_THREAD_EXECUTOR);
             }
         });
+    }
+
+    private List<WifiInfo> randomWifiInfoList(final Long pointId) {
+        List<WifiInfo> result = Lists.newArrayList();
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
+        return result;
     }
 
     private void setDragListener() {
@@ -187,6 +245,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             for (Point point : triangle.getDefiningPointList()) {
                 polylineOptions.add(point.getPosition());
             }
+            polylineOptions.add(triangle.getDefiningPointList().get(0).getPosition());
             map.addPolyline(polylineOptions);
         }
     }

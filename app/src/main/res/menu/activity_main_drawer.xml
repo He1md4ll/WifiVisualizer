@@ -8,6 +8,7 @@
             android:title="Aufnahme" />
         <item
             android:id="@+id/nav_map"
+            android:checked="true"
             android:icon="@drawable/ic_menu_gallery"
             android:title="Karte" />
     </group>

@@ -33,11 +33,12 @@ dependencies {
     compile 'org.greenrobot:greendao:3.2.0'
     compile 'com.parse.bolts:bolts-tasks:1.4.0'
     compile 'org.apache.commons:commons-math3:3.6.1'
+    compile 'com.github.PhilJay:MPAndroidChart:v3.0.1'
     testCompile 'junit:junit:4.12'
     annotationProcessor 'com.jakewharton:butterknife-compiler:8.4.0'
 }
 
 greendao {
-    schemaVersion 1
+    schemaVersion 2
     daoPackage 'edu.hsb.wifivisualizer.database'
 }

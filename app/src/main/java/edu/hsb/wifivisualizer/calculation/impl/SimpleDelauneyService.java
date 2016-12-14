@@ -13,7 +13,6 @@ import edu.hsb.wifivisualizer.calculation.IDelaunayService;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 
-// TODO: Add implementation for delaunay triangulation
 public class SimpleDelauneyService implements IDelaunayService {
 
     @Override
@@ -48,23 +47,23 @@ public class SimpleDelauneyService implements IDelaunayService {
     }
 
     private boolean isInsideDelaunayCircle(List<Vector2D> vectorList) {
-        if      (isClockWorkWise(vectorList) > 0) return (in(vectorList) > 0);
-        else if (isClockWorkWise(vectorList) < 0) return (in(vectorList) < 0);
+        if      (isClockWorkWise(vectorList) > 0) return (isInTriangle(vectorList) > 0);
+        else if (isClockWorkWise(vectorList) < 0) return (isInTriangle(vectorList) < 0);
         return true;
     }
 
     private int isClockWorkWise(List<Vector2D> vectorList) {
-        double area = area(vectorList);
+        double area = triangleArea(vectorList);
         if      (area > 0) return +1;
         else if (area < 0) return -1;
         else               return  0;
     }
 
-    private double area(List<Vector2D> vectorList) {
+    private double triangleArea(List<Vector2D> vectorList) {
         return 0.5 * vectorList.get(0).crossProduct(vectorList.get(1), vectorList.get(2));
     }
 
-    private double in(List<Vector2D> vectorList) {
+    private double isInTriangle(List<Vector2D> vectorList) {
         int rows = 4;
         final Array2DRowRealMatrix array2DRowRealMatrix = new Array2DRowRealMatrix(4, 4);
         for (int i = 0; i < rows; i++) {
