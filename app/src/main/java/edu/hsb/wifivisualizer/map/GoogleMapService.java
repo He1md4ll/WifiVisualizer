@@ -139,11 +139,15 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
 
                     @Override
                     public String getFormattedValue(float value, AxisBase axis) {
-                        final String label = ssidList.get((int) value);
-                        if (label.length() > 10) {
-                            return label.substring(0, 10) + "...";
+                        if (value < ssidList.size()) {
+                            final String label = ssidList.get((int) value);
+                            if (label.length() > 10) {
+                                return label.substring(0, 10) + "...";
+                            } else {
+                                return label;
+                            }
                         } else {
-                            return label;
+                            return "UNKNOWN";
                         }
                     }
                 });
