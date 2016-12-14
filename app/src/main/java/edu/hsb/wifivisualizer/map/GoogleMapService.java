@@ -1,17 +1,23 @@
 package edu.hsb.wifivisualizer.map;
 
+import android.graphics.Color;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
-import com.github.mikephil.charting.charts.HorizontalBarChart;
-import com.github.mikephil.charting.data.BarData;
-import com.github.mikephil.charting.data.BarDataSet;
-import com.github.mikephil.charting.data.BarEntry;
+import com.github.mikephil.charting.animation.Easing;
+import com.github.mikephil.charting.charts.RadarChart;
+import com.github.mikephil.charting.components.AxisBase;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.data.RadarData;
+import com.github.mikephil.charting.data.RadarDataSet;
+import com.github.mikephil.charting.data.RadarEntry;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapsInitializer;
@@ -21,6 +27,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -83,48 +90,82 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             MapsInitializer.initialize(fragment.getContext());
             setClickListener();
             setDragListener();
-            map.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
-                @Override
-                public View getInfoWindow(Marker marker) {
-                    return null;
-                }
-
-                @Override
-                public View getInfoContents(Marker marker) {
-                    final Point point = markerMap.get(marker);
-                    final List<WifiInfo> wifiInfoList = point.getSignalStrength();
-                    final View v = fragment.getLayoutInflater(null).inflate(R.layout.marker_info_window, null);
-                    final TextView caption = (TextView) v.findViewById(R.id.marker_caption);
-                    final HorizontalBarChart barChart = (HorizontalBarChart) v.findViewById(R.id.marker_chart);
-
-                    caption.setText("Found information for " + wifiInfoList.size() + " wifi networks");
-                    List<BarEntry> barEntryList = Lists.newArrayList();
-                    for (WifiInfo wifiInfo : wifiInfoList) {
-                            barEntryList.add(new BarEntry(barEntryList.size() ,wifiInfo.getStrength() * -1, wifiInfo.getSsid()));
-                    }
-                    final BarDataSet barDataSet = new BarDataSet(barEntryList, "Wifi data");
-                    barDataSet.setDrawValues(true);
-                    barDataSet.setColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary));
-                    barDataSet.setValueTextColor(ContextCompat.getColor(fragment.getContext(), R.color.colorAccent));
-                    final BarData barData = new BarData(barDataSet);
-                    barData.setDrawValues(true);
-                    barChart.setData(barData);
-                    barChart.getDescription().setEnabled(false);
-                    barChart.getXAxis().setEnabled(false);
-                    barChart.setMaxVisibleValueCount(wifiInfoList.size());
-
-                    //Disable all interaction with the chart
-                    barChart.setHighlightPerTapEnabled(false);
-                    barChart.setHighlightPerDragEnabled(false);
-                    barChart.setDoubleTapToZoomEnabled(false);
-                    barChart.invalidate();
-                    return v;
-                }
-            });
+            setMarkerClickListener();
             recalculate();
         } catch (SecurityException e) {
             Log.e(this.getClass().getSimpleName(), "Could not acquire phone location.");
         }
+    }
+
+    private void setMarkerClickListener() {
+        map.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(fragment.getContext());
+                final Point point = markerMap.get(marker);
+                final List<WifiInfo> wifiInfoList = point.getSignalStrength();
+                final View v = fragment.getLayoutInflater(null).inflate(R.layout.marker_info_window, null);
+
+
+                final TextView caption = (TextView) v.findViewById(R.id.marker_caption);
+                final RadarChart barChart = (RadarChart) v.findViewById(R.id.marker_chart);
+
+                caption.setText("Found information for " + wifiInfoList.size() + " wifi networks");
+                List<RadarEntry> barEntryList = Lists.newArrayList();
+                for (WifiInfo wifiInfo : wifiInfoList) {
+                    barEntryList.add(new RadarEntry(wifiInfo.getStrength() * -1, wifiInfo.getSsid()));
+                }
+                final RadarDataSet barDataSet = new RadarDataSet(barEntryList, "Wifi data");
+                barDataSet.setDrawValues(false);
+                //barDataSet.setValueTextSize(10f);
+                //barDataSet.setValueTextColor(ContextCompat.getColor(fragment.getContext(), R.color.colorAccent));
+                barDataSet.setLineWidth(3f);
+                barDataSet.setFillColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary));
+                barDataSet.setDrawFilled(true);
+                barDataSet.setColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimaryDark));
+                final RadarData barData = new RadarData(barDataSet);
+                barChart.setData(barData);
+                barChart.getDescription().setEnabled(false);
+                final XAxis xAxis = barChart.getXAxis();
+                xAxis.setTextSize(7f);
+                xAxis.setValueFormatter(new IAxisValueFormatter() {
+
+                    private List<String> ssidList = Lists.transform(wifiInfoList, new Function<WifiInfo, String>() {
+                        @Override
+                        public String apply(WifiInfo input) {
+                            return input.getSsid();
+                        }
+                    });
+
+                    @Override
+                    public String getFormattedValue(float value, AxisBase axis) {
+                        final String label = ssidList.get((int) value);
+                        if (label.length() > 10) {
+                            return label.substring(0, 10) + "...";
+                        } else {
+                            return label;
+                        }
+                    }
+                });
+
+                //Disable all interaction with the chart
+                barChart.setHighlightPerTapEnabled(false);
+                barChart.animateXY(
+                        1400, 1400,
+                        Easing.EasingOption.EaseInOutQuad,
+                        Easing.EasingOption.EaseInOutQuad);
+                barChart.setWebLineWidth(1f);
+                barChart.setWebColor(Color.LTGRAY);
+                barChart.setWebLineWidthInner(1f);
+                barChart.setWebColorInner(Color.LTGRAY);
+                barChart.setWebAlpha(100);
+                barChart.invalidate();
+
+                dialogBuilder.setNeutralButton(android.R.string.ok, null);
+                dialogBuilder.setView(v).create().show();
+                return true;
+            }
+        });
     }
 
     @Override
@@ -176,9 +217,9 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
 
     private List<WifiInfo> randomWifiInfoList(final Long pointId) {
         List<WifiInfo> result = Lists.newArrayList();
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH)));
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
+        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
         return result;
     }
 
