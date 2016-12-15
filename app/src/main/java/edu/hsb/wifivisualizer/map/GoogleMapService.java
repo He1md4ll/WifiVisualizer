@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -43,7 +44,7 @@ import edu.hsb.wifivisualizer.DatabaseTaskController;
 import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
 import edu.hsb.wifivisualizer.calculation.IDelaunayService;
-import edu.hsb.wifivisualizer.calculation.impl.SimpleDelauneyService;
+import edu.hsb.wifivisualizer.calculation.impl.IncrementalDelaunayService;
 import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
@@ -65,7 +66,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         this.fragment = fragment;
         final DaoSession daoSession = ((WifiVisualizerApp) fragment.getActivity().getApplication()).getDaoSession();
         dbController = new DatabaseTaskController(daoSession);
-        delaunayService = new SimpleDelauneyService();
+        delaunayService = new IncrementalDelaunayService();
     }
 
     @Override
@@ -269,11 +270,20 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     private void calculateTriangulation() {
-        dbController.getPointList().onSuccess(new Continuation<List<Point>, Void>() {
+        dbController.getPointList().onSuccessTask(new Continuation<List<Point>, Task<List<Triangle>>>() {
             @Override
-            public Void then(Task<List<Point>> task) throws Exception {
-                final List<Triangle> calculate = delaunayService.calculate(task.getResult());
-                for (Triangle triangle : calculate) {
+            public Task<List<Triangle>> then(final Task<List<Point>> task) throws Exception {
+                return Task.callInBackground(new Callable<List<Triangle>>() {
+                    @Override
+                    public List<Triangle> call() throws Exception {
+                        return delaunayService.calculate(task.getResult());
+                    }
+                });
+            }
+        }).onSuccess(new Continuation<List<Triangle>, Void>() {
+            @Override
+            public Void then(final Task<List<Triangle>> task) throws Exception {
+                for (Triangle triangle : task.getResult()) {
                     drawTriangle(triangle);
                 }
                 return null;
