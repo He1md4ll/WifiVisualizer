@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-
     <group android:checkableBehavior="single">
         <item
             android:id="@+id/nav_capture"
@@ -12,4 +11,23 @@
             android:icon="@drawable/ic_menu_gallery"
             android:title="Karte" />
     </group>
+
+    <item android:title="Manage">
+        <menu>
+            <group android:checkableBehavior="none">
+                <item
+                    android:id="@+id/nav_import"
+                    android:icon="@drawable/ic_menu_share"
+                    android:title="Import data" />
+                <item
+                    android:id="@+id/nav_export"
+                    android:icon="@drawable/ic_menu_share"
+                    android:title="Export data" />
+                <item
+                    android:id="@+id/nav_clear"
+                    android:icon="@drawable/ic_menu_share"
+                    android:title="Clear all data" />
+            </group>
+        </menu>
+    </item>
 </menu>

@@ -63,4 +63,15 @@ public class DatabaseTaskController {
             }
         }, DATABASE_EXECUTOR);
     }
+
+    public Task<Void> clearAll() {
+        return Task.call(new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
+                daoSession.getWifiInfoDao().deleteAll();
+                daoSession.getPointDao().deleteAll();
+                return null;
+            }
+        }, DATABASE_EXECUTOR);
+    }
 }
