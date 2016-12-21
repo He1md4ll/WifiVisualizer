@@ -1,0 +1,39 @@
+package edu.hsb.wifivisualizer.calculation.impl;
+
+import com.google.android.gms.maps.model.LatLng;
+import com.google.common.collect.Lists;
+
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.List;
+
+import edu.hsb.wifivisualizer.calculation.IDelaunayService;
+import edu.hsb.wifivisualizer.model.Point;
+import edu.hsb.wifivisualizer.model.Triangle;
+
+import static org.junit.Assert.*;
+
+public class AdvancedDelaunayServiceTest {
+
+    private IDelaunayService delaunayService;
+
+    @Before
+    public void setUp() {
+        delaunayService = new AdvancedDelaunayService();
+    }
+
+    @Test
+    public void calculate() throws Exception {
+        // Given
+        final List<Point> testList = Lists.newArrayList();
+        testList.add(new Point(null, new LatLng(0,0)));
+
+        // When
+        List<Triangle> result = delaunayService.calculate(testList);
+
+        // Then
+        assertNull(result);
+    }
+
+}
