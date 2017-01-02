@@ -88,6 +88,10 @@ public class Point {
         return signalStrength;
     }
 
+    public void setSignalStrength(List<WifiInfo> signalStrength){
+        this.signalStrength = signalStrength;
+    }
+
     /** Resets a to-many relationship, making the next get call to query for a fresh result. */
     @Generated(hash = 1218845129)
     public synchronized void resetSignalStrength() {
