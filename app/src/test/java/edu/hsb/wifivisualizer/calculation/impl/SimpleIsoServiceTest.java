@@ -30,7 +30,7 @@ public class SimpleIsoServiceTest {
     }
 
     @Test
-    public void calculate() throws Exception {
+    public void testOneTriangle() throws Exception {
         // Given
         List<Point> trianglePoints = new ArrayList<Point>();
         WifiInfo wifiInfoP1 = new WifiInfo();
@@ -70,7 +70,108 @@ public class SimpleIsoServiceTest {
         List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues);
 
         // Then
-        assertNull(result);
+        assertEquals(1, result.size());
+        assertEquals(2, result.get(0).getIsoPointList().size());
+    }
+
+    @Test
+    public void testTwoTriangles() throws Exception {
+        // Given
+        List<Point> trianglePoints = new ArrayList<Point>();
+        WifiInfo wifiInfoP1 = new WifiInfo();
+        wifiInfoP1.setStrength(10);
+        Point p1 = new Point();
+        p1.setPosition(new LatLng(1, 1));
+        List<WifiInfo> wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP1);
+        p1.setSignalStrength(wifiInfos);
+        trianglePoints.add(p1);
+
+        WifiInfo wifiInfoP2 = new WifiInfo();
+        wifiInfoP2.setStrength(20);
+        Point p2 = new Point();
+        p2.setPosition(new LatLng(3, 1));
+        wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP2);
+        p2.setSignalStrength(wifiInfos);
+        trianglePoints.add(p2);
+
+        WifiInfo wifiInfoP3 = new WifiInfo();
+        wifiInfoP3.setStrength(30);
+        Point p3 = new Point();
+        p3.setPosition(new LatLng(2, 2));
+        wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP3);
+        p3.setSignalStrength(wifiInfos);
+        trianglePoints.add(p3);
+
+        List<Triangle> testTriangles = Lists.newArrayList();
+        testTriangles.add(new Triangle((trianglePoints)));
+
+        List<Point> triangle2Points = new ArrayList<Point>();
+        triangle2Points.add(p1);
+        triangle2Points.add(p2);
+        Point p4 = new Point();
+        p4.setPosition(new LatLng(-2, -2));
+        p4.setSignalStrength(wifiInfos);
+        triangle2Points.add(p4);
+        testTriangles.add(new Triangle((triangle2Points)));
+
+
+        List<Integer> isoValues = new ArrayList<Integer>();
+        isoValues.add(15);
+
+        // When
+        List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues);
+
+        // Then
+        assertEquals(1, result.size());
+        assertEquals(4, result.get(0).getIsoPointList().size());
+    }
+
+    @Test
+    public void testNoIsoLine() throws Exception {
+        // Given
+        List<Point> trianglePoints = new ArrayList<Point>();
+        WifiInfo wifiInfoP1 = new WifiInfo();
+        wifiInfoP1.setStrength(10);
+        Point p1 = new Point();
+        p1.setPosition(new LatLng(1, 1));
+        List<WifiInfo> wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP1);
+        p1.setSignalStrength(wifiInfos);
+        trianglePoints.add(p1);
+
+        WifiInfo wifiInfoP2 = new WifiInfo();
+        wifiInfoP2.setStrength(20);
+        Point p2 = new Point();
+        p2.setPosition(new LatLng(3, 1));
+        wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP2);
+        p2.setSignalStrength(wifiInfos);
+        trianglePoints.add(p2);
+
+        WifiInfo wifiInfoP3 = new WifiInfo();
+        wifiInfoP3.setStrength(30);
+        Point p3 = new Point();
+        p3.setPosition(new LatLng(2, 2));
+        wifiInfos = new ArrayList<WifiInfo>();
+        wifiInfos.add(wifiInfoP3);
+        p3.setSignalStrength(wifiInfos);
+        trianglePoints.add(p3);
+
+        List<Triangle> testTriangles = Lists.newArrayList();
+        testTriangles.add(new Triangle((trianglePoints)));
+
+        List<Integer> isoValues = new ArrayList<Integer>();
+        isoValues.add(40);
+
+        // When
+        List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues);
+
+        // Then
+        assertEquals(1, result.size());
+        assertEquals(0, result.get(0).getIsoPointList().size());
     }
 
 }
