@@ -16,6 +16,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,6 +51,10 @@ import edu.hsb.wifivisualizer.model.WifiInfo;
 
 public class CaptureFragment extends Fragment implements ILocationListener, IWifiListener {
 
+    @BindView(R.id.seekbar_distance)
+    SeekBar seekBar;
+    @BindView(R.id.text_seek)
+    TextView seekText;
     @BindView(R.id.button_start)
     Button start;
     @BindView(R.id.button_stop)
@@ -57,10 +62,11 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
     @BindView(R.id.text_captured)
     TextView captured;
 
-    private static final float MIN_DISTANCE = 5;
+    private int minDistance = 5;
     private WifiService wifiService;
     private GoogleLocationProvider googleLocationProvider;
     private boolean serviceBound = Boolean.FALSE;
+    private boolean started = Boolean.FALSE;
     private ServiceConnection serviceConnection;
     private Location currentLocation;
     private DatabaseTaskController dbController;
@@ -95,6 +101,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         start.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                started = Boolean.TRUE;
                 googleLocationProvider.startListening(CaptureFragment.this);
                 Intent intent = new Intent(CaptureFragment.this.getContext(), WifiService.class);
                 getActivity().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
@@ -109,6 +116,21 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             }
         });
         captured.setText("Captured locations: " + locationMap.size());
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                seekText.setText(progress + "/50 meter");
+                minDistance = progress;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                stop();
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
     }
 
     @Override
@@ -122,7 +144,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         if (location != null) {
             if (currentLocation == null) {
                 currentLocation = location;
-            } else if (currentLocation.distanceTo(location) > MIN_DISTANCE) {
+            } else if (currentLocation.distanceTo(location) > minDistance) {
                 currentLocation = location;
             }
         }
@@ -167,6 +189,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
     }
 
     private void stop() {
+        if (!started) return;
         googleLocationProvider.stopListening();
         if (serviceBound) {
             getActivity().unbindService(serviceConnection);
@@ -175,12 +198,13 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         }
         start.setEnabled(Boolean.TRUE);
         stop.setEnabled(Boolean.FALSE);
+        List<Task<Void>> taskList = Lists.newArrayList();
         for (final Map.Entry<Location, List<WifiInfo>> entry : locationMap.entrySet()) {
             final Location entryLocation = entry.getKey();
             final Point point = new Point(null, new LatLng(entryLocation.getLatitude(),
                     entryLocation.getLongitude()),
                     PointUtils.calculateAverageStrength(entry.getValue()));
-            dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
+            taskList.add(dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                 @Override
                 public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
                     final Point result = task.getResult();
@@ -195,13 +219,21 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             }).onSuccess(new Continuation<List<WifiInfo>, Void>() {
                 @Override
                 public Void then(Task<List<WifiInfo>> task) throws Exception {
-                    Toast.makeText(CaptureFragment.this.getContext(), "Saved location map to local database", Toast.LENGTH_LONG).show();
-                    locationMap.clear();
-                    captured.setText("Captured locations: " + locationMap.size());
                     return null;
                 }
-            }, Task.UI_THREAD_EXECUTOR);
+            }));
         }
+
+        Task.whenAll(taskList).onSuccess(new Continuation<Void, Void>() {
+            @Override
+            public Void then(Task<Void> task) throws Exception {
+                Toast.makeText(CaptureFragment.this.getContext(), "Saved location map to local database", Toast.LENGTH_LONG).show();
+                locationMap.clear();
+                captured.setText("Captured locations: " + locationMap.size());
+                started = Boolean.FALSE;
+                return null;
+            }
+        }, Task.UI_THREAD_EXECUTOR);
     }
 
     private List<WifiInfo> updateWifiInfoList(List<WifiInfo> currentList, List<WifiInfo> newList) {
