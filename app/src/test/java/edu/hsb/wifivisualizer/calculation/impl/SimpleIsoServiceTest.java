@@ -30,21 +30,21 @@ public class SimpleIsoServiceTest {
         List<Point> trianglePoints = Lists.newArrayList();
         Point p1 = new Point();
         p1.setPosition(new LatLng(1, 1));
-        p1.setAverageStrength(10);
+        p1.setAverageStrength(-10);
         trianglePoints.add(p1);
 
         Point p2 = new Point();
         p2.setPosition(new LatLng(3, 1));
-        p2.setAverageStrength(20);
+        p2.setAverageStrength(-20);
         trianglePoints.add(p2);
 
         Point p3 = new Point();
         p3.setPosition(new LatLng(2, 2));
-        p3.setAverageStrength(30);
+        p3.setAverageStrength(-30);
         trianglePoints.add(p3);
 
         List<Triangle> testTriangles = Lists.newArrayList(new Triangle((trianglePoints)));
-        List<Integer> isoValues = Lists.newArrayList(15);
+        List<Integer> isoValues = Lists.newArrayList(-15);
 
         // When
         List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues, null);
@@ -60,27 +60,27 @@ public class SimpleIsoServiceTest {
         List<Point> trianglePoints = Lists.newArrayList();
         Point p1 = new Point();
         p1.setPosition(new LatLng(1, 1));
-        p1.setAverageStrength(10);
+        p1.setAverageStrength(-10);
         trianglePoints.add(p1);
 
         Point p2 = new Point();
         p2.setPosition(new LatLng(3, 1));
-        p2.setAverageStrength(20);
+        p2.setAverageStrength(-20);
         trianglePoints.add(p2);
 
         Point p3 = new Point();
         p3.setPosition(new LatLng(2, 2));
-        p3.setAverageStrength(30);
+        p3.setAverageStrength(-30);
         trianglePoints.add(p3);
 
         Point p4 = new Point();
         p4.setPosition(new LatLng(-2, -2));
-        p4.setAverageStrength(40);
+        p4.setAverageStrength(-40);
 
         List<Triangle> testTriangles = Lists.newArrayList(new Triangle((trianglePoints)));
         List<Point> triangle2Points = Lists.newArrayList(p1, p2, p4);
         testTriangles.add(new Triangle((triangle2Points)));
-        List<Integer> isoValues = Lists.newArrayList(15);
+        List<Integer> isoValues = Lists.newArrayList(-15);
 
         // When
         List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues, null);
@@ -96,21 +96,21 @@ public class SimpleIsoServiceTest {
         List<Point> trianglePoints = Lists.newArrayList();
         Point p1 = new Point();
         p1.setPosition(new LatLng(1, 1));
-        p1.setAverageStrength(10);
+        p1.setAverageStrength(-10);
         trianglePoints.add(p1);
 
         Point p2 = new Point();
         p2.setPosition(new LatLng(3, 1));
-        p2.setAverageStrength(20);
+        p2.setAverageStrength(-20);
         trianglePoints.add(p2);
 
         Point p3 = new Point();
         p3.setPosition(new LatLng(2, 2));
-        p3.setAverageStrength(30);
+        p3.setAverageStrength(-30);
         trianglePoints.add(p3);
 
         List<Triangle> testTriangles = Lists.newArrayList(new Triangle((trianglePoints)));
-        List<Integer> isoValues =Lists.newArrayList(40);
+        List<Integer> isoValues =Lists.newArrayList(0);
 
         // When
         List<Isoline> result = isoService.extractIsolines(testTriangles, isoValues, null);

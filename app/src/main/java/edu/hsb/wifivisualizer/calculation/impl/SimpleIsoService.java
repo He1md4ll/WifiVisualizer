@@ -15,8 +15,6 @@ import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 import edu.hsb.wifivisualizer.model.WifiInfo;
 
-// TODO: Add implementation for isoline extraction
-
 /**
  * For index reference and algorithm look here: https://en.wikipedia.org/wiki/Marching_squares#Meandering_triangles
  */
@@ -48,17 +46,14 @@ public class SimpleIsoService implements IIsoService {
                 byte index = 0;
                 if (strengthP1 > isoValue){
                     index += 0b0100;
-                } else {
                     correspondingPointList.add(p1.getPosition());
                 }
                 if (strengthP2 > isoValue){
                     index += 0b0010;
-                } else {
                     correspondingPointList.add(p2.getPosition());
                 }
                 if (strengthP3 > isoValue){
                     index += 0b0001;
-                } else {
                     correspondingPointList.add(p3.getPosition());
                 }
 
@@ -101,10 +96,10 @@ public class SimpleIsoService implements IIsoService {
             if (wifiInfoOptional.isPresent()) {
                 return wifiInfoOptional.get().getStrength();
             } else {
-                return Integer.MAX_VALUE;
+                return MIN_SIGNAL_STRENGTH;
             }
         }
-        return Optional.fromNullable(point.getAverageStrength()).or(Integer.MAX_VALUE);
+        return Optional.fromNullable(point.getAverageStrength()).or(MIN_SIGNAL_STRENGTH);
     }
 
     private LatLng interpolateLinear(Point p1, Point p2, int strengthP1, int strengthP2, int value){
