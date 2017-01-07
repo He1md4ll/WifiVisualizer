@@ -24,10 +24,13 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimaps;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ import bolts.Task;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import edu.hsb.wifivisualizer.DatabaseTaskController;
+import edu.hsb.wifivisualizer.PointUtils;
 import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
 import edu.hsb.wifivisualizer.map.GoogleLocationProvider;
@@ -147,7 +151,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             });
             final List<WifiInfo> currentWifiInfoList = locationMap.get(currentLocation);
             if (currentWifiInfoList == null) {
-                locationMap.put(currentLocation, newWifiInfoList);
+                locationMap.put(currentLocation, distinctWifiInfoList(newWifiInfoList));
             } else {
                 locationMap.put(currentLocation, updateWifiInfoList(currentWifiInfoList, newWifiInfoList));
             }
@@ -173,7 +177,9 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         stop.setEnabled(Boolean.FALSE);
         for (final Map.Entry<Location, List<WifiInfo>> entry : locationMap.entrySet()) {
             final Location entryLocation = entry.getKey();
-            final Point point = new Point(null, new LatLng(entryLocation.getLatitude(), entryLocation.getLongitude()));
+            final Point point = new Point(null, new LatLng(entryLocation.getLatitude(),
+                    entryLocation.getLongitude()),
+                    PointUtils.calculateAverageStrength(entry.getValue()));
             dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                 @Override
                 public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
@@ -212,6 +218,32 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             } else {
                 result.add(wifiInfo);
             }
+        }
+        return result;
+    }
+
+    private List<WifiInfo> distinctWifiInfoList(List<WifiInfo> infoList) {
+        final List<WifiInfo> result = Lists.newArrayList();
+        ImmutableListMultimap<String, WifiInfo> indexedWifiMultimap = Multimaps.index(infoList, new Function<WifiInfo, String>() {
+            @Override
+            public String apply(WifiInfo input) {
+                return input.getSsid();
+            }
+        });
+        for (Map.Entry<String, Collection<WifiInfo>> entry: indexedWifiMultimap.asMap().entrySet()) {
+            final Collection<WifiInfo> entryValue = entry.getValue();
+            if (!entryValue.isEmpty()) {
+                WifiInfo infoEntry = new WifiInfo();
+                int averageStrength = 0;
+                for (WifiInfo info : entryValue) {
+                    averageStrength += info.getStrength();
+                }
+                averageStrength /= entryValue.size();
+                infoEntry.setSsid(entry.getKey());
+                infoEntry.setStrength(averageStrength);
+                result.add(infoEntry);
+            }
+
         }
         return result;
     }

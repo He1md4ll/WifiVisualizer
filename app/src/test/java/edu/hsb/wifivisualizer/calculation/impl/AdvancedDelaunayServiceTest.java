@@ -12,7 +12,7 @@ import edu.hsb.wifivisualizer.calculation.IDelaunayService;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNull;
 
 public class AdvancedDelaunayServiceTest {
 
@@ -27,7 +27,7 @@ public class AdvancedDelaunayServiceTest {
     public void calculate() throws Exception {
         // Given
         final List<Point> testList = Lists.newArrayList();
-        testList.add(new Point(null, new LatLng(0,0)));
+        testList.add(new Point(null, new LatLng(0,0), 0));
 
         // When
         List<Triangle> result = delaunayService.calculate(testList);

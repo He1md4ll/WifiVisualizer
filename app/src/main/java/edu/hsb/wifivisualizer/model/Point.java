@@ -21,7 +21,6 @@ import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.database.PointDao;
 import edu.hsb.wifivisualizer.database.WifiInfoDao;
 
-
 @Entity
 public class Point {
 
@@ -33,6 +32,8 @@ public class Point {
     @ToMany(referencedJoinProperty = "pointId")
     @OrderBy("ssid ASC")
     private List<WifiInfo> signalStrength;
+    @NotNull
+    private Integer averageStrength;
     /** Used to resolve relations */
     @Generated(hash = 2040040024)
     private transient DaoSession daoSession;
@@ -40,10 +41,11 @@ public class Point {
     @Generated(hash = 1980395011)
     private transient PointDao myDao;
 
-    @Generated(hash = 1444149411)
-    public Point(Long id, @NotNull LatLng position) {
+    @Generated(hash = 2000196699)
+    public Point(Long id, @NotNull LatLng position, @NotNull Integer averageStrength) {
         this.id = id;
         this.position = position;
+        this.averageStrength = averageStrength;
     }
 
     @Generated(hash = 1977038299)
@@ -139,6 +141,14 @@ public class Point {
     public void __setDaoSession(DaoSession daoSession) {
         this.daoSession = daoSession;
         myDao = daoSession != null ? daoSession.getPointDao() : null;
+    }
+
+    public Integer getAverageStrength() {
+        return this.averageStrength;
+    }
+
+    public void setAverageStrength(Integer averageStrength) {
+        this.averageStrength = averageStrength;
     }
 
     @Keep

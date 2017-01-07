@@ -188,11 +188,13 @@ public class MainActivity extends AppCompatActivity
                                 final List<Point> pointList = new Gson().fromJson(importString, new TypeToken<List<Point>>(){}.getType());
                                 for (final Point point : pointList) {
                                     point.setId(null);
+                                    point.setAverageStrength(PointUtils.calculateAverageStrength(point.getSignalStrength()));
                                     dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                                         @Override
                                         public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
                                             final Long pointId = task.getResult().getId();
                                             for(WifiInfo info : point.getSignalStrength()) {
+                                                info.setId(null);
                                                 info.setPointId(pointId);
                                             }
                                             return dbController.saveWifiInfoList(point.getSignalStrength());

@@ -42,6 +42,6 @@ dependencies {
 }
 
 greendao {
-    schemaVersion 2
+    schemaVersion 4
     daoPackage 'edu.hsb.wifivisualizer.database'
 }

@@ -26,10 +26,13 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
+import org.greenrobot.greendao.annotation.NotNull;
 
 import java.util.Collections;
 import java.util.List;
@@ -41,18 +44,23 @@ import java.util.concurrent.Callable;
 import bolts.Continuation;
 import bolts.Task;
 import edu.hsb.wifivisualizer.DatabaseTaskController;
+import edu.hsb.wifivisualizer.LatLngComperator;
+import edu.hsb.wifivisualizer.PointUtils;
 import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
 import edu.hsb.wifivisualizer.calculation.IDelaunayService;
+import edu.hsb.wifivisualizer.calculation.IIsoService;
 import edu.hsb.wifivisualizer.calculation.impl.IncrementalDelaunayService;
+import edu.hsb.wifivisualizer.calculation.impl.SimpleIsoService;
 import edu.hsb.wifivisualizer.database.DaoSession;
+import edu.hsb.wifivisualizer.model.Isoline;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 import edu.hsb.wifivisualizer.model.WifiInfo;
 
 public class GoogleMapService implements IMapService, OnMapReadyCallback {
 
-    private static final int MAX_SIGNAL_STRENGTH = 50;
+    private static final int MAX_SIGNAL_STRENGTH = 100;
     private static final Float INITAL_ZOOM_LEVEL = 15.0f;
     private GoogleMap map;
     private Fragment fragment;
@@ -61,12 +69,14 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     private boolean zoomIn = Boolean.TRUE;
 
     private IDelaunayService delaunayService;
+    private IIsoService isoService;
 
     public GoogleMapService(Fragment fragment) {
         this.fragment = fragment;
         final DaoSession daoSession = ((WifiVisualizerApp) fragment.getActivity().getApplication()).getDaoSession();
         dbController = new DatabaseTaskController(daoSession);
         delaunayService = new IncrementalDelaunayService();
+        isoService = new SimpleIsoService();
     }
 
     @Override
@@ -114,7 +124,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                 caption.setText("Found information for " + wifiInfoList.size() + " wifi networks");
                 List<RadarEntry> barEntryList = Lists.newArrayList();
                 for (WifiInfo wifiInfo : wifiInfoList) {
-                    barEntryList.add(new RadarEntry(wifiInfo.getStrength() * -1, wifiInfo.getSsid()));
+                    barEntryList.add(new RadarEntry(wifiInfo.getStrength(), wifiInfo.getSsid()));
                 }
                 final RadarDataSet barDataSet = new RadarDataSet(barEntryList, "Wifi data");
                 barDataSet.setDrawValues(false);
@@ -201,13 +211,17 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         map.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                final Point point = new Point(null, latLng);
+                final List<WifiInfo> infoList = randomWifiInfoList();
+                final Point point = new Point(null, latLng, PointUtils.calculateAverageStrength(infoList));
                 // Save Point in db
                 dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                     @Override
                     public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
-                        final Point result = task.getResult();
-                        return dbController.saveWifiInfoList(randomWifiInfoList(result.getId()));
+                        final Long pointId = task.getResult().getId();
+                        for (WifiInfo info : infoList) {
+                            info.setPointId(pointId);
+                        }
+                        return dbController.saveWifiInfoList(infoList);
                     }
                 }).onSuccess(new Continuation<List<WifiInfo>, Void>() {
                     @Override
@@ -220,11 +234,11 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         });
     }
 
-    private List<WifiInfo> randomWifiInfoList(final Long pointId) {
+    private List<WifiInfo> randomWifiInfoList() {
         List<WifiInfo> result = Lists.newArrayList();
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
-        result.add(new WifiInfo(null, pointId, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
+        result.add(new WifiInfo(null, null, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
+        result.add(new WifiInfo(null, null, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
+        result.add(new WifiInfo(null, null, UUID.randomUUID().toString(), new Random().nextInt(MAX_SIGNAL_STRENGTH) * -1));
         return result;
     }
 
@@ -280,11 +294,25 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                     }
                 });
             }
-        }).onSuccess(new Continuation<List<Triangle>, Void>() {
+        }).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
             @Override
-            public Void then(final Task<List<Triangle>> task) throws Exception {
-                for (Triangle triangle : task.getResult()) {
+            public List<Triangle> then(final Task<List<Triangle>> task) throws Exception {
+                final List<Triangle> result = task.getResult();
+                for (Triangle triangle : result) {
                     drawTriangle(triangle);
+                }
+                return result;
+            }
+        }, Task.UI_THREAD_EXECUTOR).onSuccess(new Continuation<List<Triangle>, List<Isoline>>() {
+            @Override
+            public List<Isoline> then(Task<List<Triangle>> task) throws Exception {
+                return isoService.extractIsolines(task.getResult(), Lists.newArrayList(-50), null);
+            }
+        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, Void>() {
+            @Override
+            public Void then(Task<List<Isoline>> task) throws Exception {
+                for (Isoline isoline : task.getResult()) {
+                    drawIsoline(isoline);
                 }
                 return null;
             }
@@ -295,13 +323,40 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         if (map != null) {
             final int color = ContextCompat.getColor(fragment.getContext(), R.color.colorAccent);
             final PolylineOptions polylineOptions = new PolylineOptions();
-            polylineOptions.visible(Boolean.TRUE);
             polylineOptions.color(color);
             for (Point point : triangle.getDefiningPointList()) {
                 polylineOptions.add(point.getPosition());
             }
             polylineOptions.add(triangle.getDefiningPointList().get(0).getPosition());
             map.addPolyline(polylineOptions);
+        }
+    }
+
+    private void drawIsoline(@NotNull Isoline isoline) {
+        if (map != null && !isoline.getIntersectionList().isEmpty()) {
+            final int colorStroke = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimaryDark);
+            final int colorFill = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary);
+
+            for (Isoline.Intersection intersection : isoline.getIntersectionList()) {
+                boolean draw = Boolean.FALSE;
+                final PolygonOptions polygoneOptions = new PolygonOptions();
+                polygoneOptions.strokeColor(colorStroke);
+                polygoneOptions.fillColor(colorFill);
+                if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
+                    polygoneOptions.add(intersection.getIntersectionPoint1());
+                    polygoneOptions.add(intersection.getIntersectionPoint2());
+                    draw = Boolean.TRUE;
+                }
+                for (final LatLng point : intersection.getCorrespondingPointList()) {
+                    polygoneOptions.add(point);
+                    draw = Boolean.TRUE;
+                }
+                if (draw) {
+                    final LatLng upper = PointUtils.findUpperLeftPoint(polygoneOptions.getPoints());
+                    Collections.sort(polygoneOptions.getPoints(), new LatLngComperator(upper));
+                    map.addPolygon(polygoneOptions);
+                }
+            }
         }
     }
 }
