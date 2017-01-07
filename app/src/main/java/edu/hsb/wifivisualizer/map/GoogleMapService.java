@@ -3,7 +3,6 @@ package edu.hsb.wifivisualizer.map;
 import android.graphics.Color;
 import android.location.Location;
 import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -48,10 +46,6 @@ import edu.hsb.wifivisualizer.LatLngComperator;
 import edu.hsb.wifivisualizer.PointUtils;
 import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
-import edu.hsb.wifivisualizer.calculation.IDelaunayService;
-import edu.hsb.wifivisualizer.calculation.IIsoService;
-import edu.hsb.wifivisualizer.calculation.impl.IncrementalDelaunayService;
-import edu.hsb.wifivisualizer.calculation.impl.SimpleIsoService;
 import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.model.Isoline;
 import edu.hsb.wifivisualizer.model.Point;
@@ -63,20 +57,16 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     private static final int MAX_SIGNAL_STRENGTH = 100;
     private static final Float INITAL_ZOOM_LEVEL = 15.0f;
     private GoogleMap map;
-    private Fragment fragment;
+    private MapFragment fragment;
     private DatabaseTaskController dbController;
     private Map<Marker, Point> markerMap;
     private boolean zoomIn = Boolean.TRUE;
 
-    private IDelaunayService delaunayService;
-    private IIsoService isoService;
 
-    public GoogleMapService(Fragment fragment) {
+    public GoogleMapService(MapFragment fragment) {
         this.fragment = fragment;
         final DaoSession daoSession = ((WifiVisualizerApp) fragment.getActivity().getApplication()).getDaoSession();
         dbController = new DatabaseTaskController(daoSession);
-        delaunayService = new IncrementalDelaunayService();
-        isoService = new SimpleIsoService();
     }
 
     @Override
@@ -115,6 +105,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                 final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(fragment.getContext());
                 final Point point = markerMap.get(marker);
                 final List<WifiInfo> wifiInfoList = point.getSignalStrength();
+                if (wifiInfoList.isEmpty()) return false;
                 final View v = fragment.getLayoutInflater(null).inflate(R.layout.marker_info_window, null);
 
 
@@ -264,12 +255,6 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         });
     }
 
-    private void recalculate() {
-        map.clear();
-        calculateTriangulation();
-        loadPoints();
-    }
-
     private void loadPoints() {
         dbController.getPointList().onSuccess(new Continuation<List<Point>, Void>() {
             @Override
@@ -283,43 +268,15 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         }, Task.UI_THREAD_EXECUTOR);
     }
 
-    private void calculateTriangulation() {
-        dbController.getPointList().onSuccessTask(new Continuation<List<Point>, Task<List<Triangle>>>() {
-            @Override
-            public Task<List<Triangle>> then(final Task<List<Point>> task) throws Exception {
-                return Task.callInBackground(new Callable<List<Triangle>>() {
-                    @Override
-                    public List<Triangle> call() throws Exception {
-                        return delaunayService.calculate(task.getResult());
-                    }
-                });
-            }
-        }).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
-            @Override
-            public List<Triangle> then(final Task<List<Triangle>> task) throws Exception {
-                final List<Triangle> result = task.getResult();
-                for (Triangle triangle : result) {
-                    drawTriangle(triangle);
-                }
-                return result;
-            }
-        }, Task.UI_THREAD_EXECUTOR).onSuccess(new Continuation<List<Triangle>, List<Isoline>>() {
-            @Override
-            public List<Isoline> then(Task<List<Triangle>> task) throws Exception {
-                return isoService.extractIsolines(task.getResult(), Lists.newArrayList(-50), null);
-            }
-        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, Void>() {
-            @Override
-            public Void then(Task<List<Isoline>> task) throws Exception {
-                for (Isoline isoline : task.getResult()) {
-                    drawIsoline(isoline);
-                }
-                return null;
-            }
-        }, Task.UI_THREAD_EXECUTOR);
+    @Override
+    public void recalculate() {
+        map.clear();
+        fragment.calculateTriangulation();
+        loadPoints();
     }
 
-    private void drawTriangle(@NonNull Triangle triangle) {
+    @Override
+    public void drawTriangle(@NonNull Triangle triangle) {
         if (map != null) {
             final int color = ContextCompat.getColor(fragment.getContext(), R.color.colorAccent);
             final PolylineOptions polylineOptions = new PolylineOptions();
@@ -332,7 +289,8 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         }
     }
 
-    private void drawIsoline(@NotNull Isoline isoline) {
+    @Override
+    public void drawIsoline(@NotNull Isoline isoline) {
         if (map != null && !isoline.getIntersectionList().isEmpty()) {
             final int colorStroke = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimaryDark);
             final int colorFill = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary);

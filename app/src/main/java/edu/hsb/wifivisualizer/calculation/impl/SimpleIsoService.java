@@ -2,6 +2,7 @@ package edu.hsb.wifivisualizer.calculation.impl;
 
 import com.google.android.gms.maps.model.LatLng;
 import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -21,11 +22,16 @@ import edu.hsb.wifivisualizer.model.WifiInfo;
  */
 public class SimpleIsoService implements IIsoService {
 
+    private static final int MAX_SIGNAL_STRENGTH = 0;
+    private static final int MIN_SIGNAL_STRENGTH = -100;
+
     @Override
     public List<Isoline> extractIsolines(List<Triangle> triangleList, List<Integer> isoValues, String ssid) {
         final List<Isoline> isolineList = Lists.newArrayList();
 
         for (int isoValue : isoValues){
+            Preconditions.checkArgument(isoValue >= MIN_SIGNAL_STRENGTH && isoValue <= MAX_SIGNAL_STRENGTH);
+
             final List<Isoline.Intersection> intersectionList = Lists.newArrayList();
             for (Triangle triangle : triangleList){
                 final Isoline.Intersection intersection = new Isoline.Intersection();
@@ -40,17 +46,17 @@ public class SimpleIsoService implements IIsoService {
 
                 //calculate index of triangle
                 byte index = 0;
-                if (strengthP1 < isoValue){
+                if (strengthP1 > isoValue){
                     index += 0b0100;
                 } else {
                     correspondingPointList.add(p1.getPosition());
                 }
-                if (strengthP2 < isoValue){
+                if (strengthP2 > isoValue){
                     index += 0b0010;
                 } else {
                     correspondingPointList.add(p2.getPosition());
                 }
-                if (strengthP3 < isoValue){
+                if (strengthP3 > isoValue){
                     index += 0b0001;
                 } else {
                     correspondingPointList.add(p3.getPosition());
@@ -94,10 +100,11 @@ public class SimpleIsoService implements IIsoService {
             });
             if (wifiInfoOptional.isPresent()) {
                 return wifiInfoOptional.get().getStrength();
+            } else {
+                return Integer.MAX_VALUE;
             }
-
         }
-        return Optional.fromNullable(point.getAverageStrength()).or(0);
+        return Optional.fromNullable(point.getAverageStrength()).or(Integer.MAX_VALUE);
     }
 
     private LatLng interpolateLinear(Point p1, Point p2, int strengthP1, int strengthP2, int value){
