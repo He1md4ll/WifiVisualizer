@@ -22,6 +22,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.google.android.gms.common.api.Status;
@@ -59,6 +60,8 @@ public class MapFragment extends Fragment implements ILocationListener {
 
     @BindView(R.id.map_wrapper)
     View wrapper;
+    @BindView(R.id.progressBar)
+    ProgressBar progressBar;
 
     private IMapService mapService;
     private GoogleLocationProvider googleLocationProvider;
@@ -243,6 +246,7 @@ public class MapFragment extends Fragment implements ILocationListener {
     }
 
     public void calculateTriangulation() {
+        progressBar.setVisibility(View.VISIBLE);
         dbController.getPointList().onSuccess(new Continuation<List<Point>, List<Point>>() {
             @Override
             public List<Point> then(final Task<List<Point>> task) throws Exception {
@@ -302,6 +306,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                         mapService.drawIsoline(isoline, Color.argb(255, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
                     }
                 }
+                progressBar.setVisibility(View.GONE);
                 return null;
             }
         }, Task.UI_THREAD_EXECUTOR);
