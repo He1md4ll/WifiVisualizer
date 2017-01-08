@@ -1,5 +1,6 @@
 package edu.hsb.wifivisualizer.map;
 
+import android.content.DialogInterface;
 import android.content.IntentSender;
 import android.graphics.Color;
 import android.location.Location;
@@ -18,6 +19,8 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -30,7 +33,6 @@ import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Callable;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -60,6 +62,7 @@ public class MapFragment extends Fragment implements ILocationListener {
 
     private IMapService mapService;
     private GoogleLocationProvider googleLocationProvider;
+    private Set<String> ssidSet = Sets.newLinkedHashSet();
 
     private DatabaseTaskController dbController;
     private IDelaunayService delaunayService;
@@ -69,7 +72,9 @@ public class MapFragment extends Fragment implements ILocationListener {
     private Snackbar locationSnackbar;
     private Snackbar requiredSnackbar;
 
-    private Set<String> ssidSet = Sets.newLinkedHashSet();
+    private boolean renderMarker = Boolean.TRUE;
+    private boolean renderTriangle = Boolean.TRUE;
+    private boolean renderIsoline = Boolean.TRUE;
 
     public MapFragment() {
         // Required empty public constructor
@@ -153,6 +158,44 @@ public class MapFragment extends Fragment implements ILocationListener {
             });
             dialog.show();
             return true;
+        } else if (id == R.id.action_render) {
+            final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(getContext());
+            final View dialogRootView = getLayoutInflater(null).inflate(R.layout.render_window, null);
+            final CheckBox markerCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.marker_checkbox);
+            final CheckBox triangleCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.triangle_checkbox);
+            final CheckBox isolineCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.isoline_checkbox);
+
+            markerCheckBoxView.setChecked(renderMarker);
+            triangleCheckBoxView.setChecked(renderTriangle);
+            isolineCheckBoxView.setChecked(renderIsoline);
+
+            markerCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    renderMarker = isChecked;
+                }
+            });
+            triangleCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    renderTriangle = isChecked;
+                }
+            });
+            isolineCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    renderIsoline = isChecked;
+                }
+            });
+            dialogBuilder.setNeutralButton("OK", null);
+            final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
+            dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+                @Override
+                public void onDismiss(DialogInterface dialog) {
+                    mapService.recalculate();
+                }
+            });
+            dialog.show();
         }
         return super.onOptionsItemSelected(item);
     }
@@ -200,24 +243,32 @@ public class MapFragment extends Fragment implements ILocationListener {
     }
 
     public void calculateTriangulation() {
-        dbController.getPointList().onSuccessTask(new Continuation<List<Point>, Task<List<Triangle>>>() {
+        dbController.getPointList().onSuccess(new Continuation<List<Point>, List<Point>>() {
             @Override
-            public Task<List<Triangle>> then(final Task<List<Point>> task) throws Exception {
-                return Task.callInBackground(new Callable<List<Triangle>>() {
-                    @Override
-                    public List<Triangle> call() throws Exception {
-                        final List<Point> result = task.getResult();
-                        extractSsids(result);
-                        return delaunayService.calculate(result);
+            public List<Point> then(final Task<List<Point>> task) throws Exception {
+                final List<Point> result = task.getResult();
+                if (renderMarker) {
+                    for (Point point : result) {
+                        mapService.drawMarker(point);
                     }
-                });
+                }
+                return result;
             }
-        }).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
+        }, Task.UI_THREAD_EXECUTOR).onSuccess(new Continuation<List<Point>, List<Triangle>>() {
+            @Override
+            public List<Triangle> then(Task<List<Point>> task) throws Exception {
+                final List<Point> result = task.getResult();
+                extractSsids(result);
+                return delaunayService.calculate(result);
+            }
+        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
             @Override
             public List<Triangle> then(final Task<List<Triangle>> task) throws Exception {
                 final List<Triangle> result = task.getResult();
-                for (Triangle triangle : result) {
-                    //mapService.drawTriangle(triangle);
+                if (renderTriangle) {
+                    for (Triangle triangle : result) {
+                        mapService.drawTriangle(triangle);
+                    }
                 }
                 return result;
             }
@@ -245,9 +296,11 @@ public class MapFragment extends Fragment implements ILocationListener {
         }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, Void>() {
             @Override
             public Void then(Task<List<Isoline>> task) throws Exception {
-                Random rnd = new Random();
-                for (Isoline isoline : task.getResult()) {
-                    mapService.drawIsoline(isoline, Color.argb(200, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
+                if (renderIsoline) {
+                    Random rnd = new Random();
+                    for (Isoline isoline : task.getResult()) {
+                        mapService.drawIsoline(isoline, Color.argb(255, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
+                    }
                 }
                 return null;
             }

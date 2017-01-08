@@ -6,8 +6,13 @@
     tools:context=".MainActivity">
 
     <item
-        android:id="@+id/action_filter"
+        android:id="@+id/action_render"
         android:orderInCategory="100"
-        android:title="Filter"
+        android:title="Render"
         app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_filter"
+        android:orderInCategory="200"
+        android:title="Filter"
+        app:showAsAction="always" />
 </menu>

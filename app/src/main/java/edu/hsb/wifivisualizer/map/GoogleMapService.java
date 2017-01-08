@@ -256,24 +256,18 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         });
     }
 
-    private void loadPoints() {
-        dbController.getPointList().onSuccess(new Continuation<List<Point>, Void>() {
-            @Override
-            public Void then(Task<List<Point>> task) throws Exception {
-                for (Point point : task.getResult()) {
-                    final Marker marker = map.addMarker(createMarkerOptions(point));
-                    markerMap.put(marker, point);
-                }
-                return null;
-            }
-        }, Task.UI_THREAD_EXECUTOR);
-    }
-
     @Override
     public void recalculate() {
         map.clear();
         fragment.calculateTriangulation();
-        loadPoints();
+    }
+
+    @Override
+    public void drawMarker(@NonNull Point point) {
+        if (map != null) {
+            final Marker marker = map.addMarker(createMarkerOptions(point));
+            markerMap.put(marker, point);
+        }
     }
 
     @Override
