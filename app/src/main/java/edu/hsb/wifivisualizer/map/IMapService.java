@@ -1,6 +1,7 @@
 package edu.hsb.wifivisualizer.map;
 
 import android.location.Location;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.view.View;
 
@@ -14,5 +15,5 @@ public interface IMapService {
     void centerOnLocation(@NonNull Location location);
     void recalculate();
     void drawTriangle(@NonNull Triangle triangle);
-    void drawIsoline(@NotNull Isoline isoline);
+    void drawIsoline(@NotNull Isoline isoline, @ColorInt int color);
 }

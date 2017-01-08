@@ -4,6 +4,32 @@
     android:layout_height="match_parent"
     android:orientation="vertical" >
 
+    <android.support.design.widget.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginStart="16dp">
+
+        <android.support.design.widget.TextInputEditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:inputType="textShortMessage"
+            android:ems="10"
+            android:id="@+id/filter_text"
+            android:hint="Selected iso values"/>
+    </android.support.design.widget.TextInputLayout>
+
+    <Button
+        android:id="@+id/filter_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Save"
+        android:background="@color/colorPrimary"
+        android:textColor="#fff"
+        android:layout_margin="16dp"/>
+
     <ListView
         android:id="@+id/list"
         android:layout_height="wrap_content"

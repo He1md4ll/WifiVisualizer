@@ -1,6 +1,7 @@
 package edu.hsb.wifivisualizer.map;
 
 import android.content.IntentSender;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
@@ -16,14 +17,18 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import com.google.android.gms.common.api.Status;
+import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -32,6 +37,7 @@ import bolts.Task;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import edu.hsb.wifivisualizer.DatabaseTaskController;
+import edu.hsb.wifivisualizer.PreferenceController;
 import edu.hsb.wifivisualizer.R;
 import edu.hsb.wifivisualizer.WifiVisualizerApp;
 import edu.hsb.wifivisualizer.calculation.IDelaunayService;
@@ -58,12 +64,12 @@ public class MapFragment extends Fragment implements ILocationListener {
     private DatabaseTaskController dbController;
     private IDelaunayService delaunayService;
     private IIsoService isoService;
+    private PreferenceController preferenceController;
 
     private Snackbar locationSnackbar;
     private Snackbar requiredSnackbar;
 
     private Set<String> ssidSet = Sets.newLinkedHashSet();
-    private int selectedSSIDPosition = 0;
 
     public MapFragment() {
         // Required empty public constructor
@@ -86,6 +92,7 @@ public class MapFragment extends Fragment implements ILocationListener {
         dbController = new DatabaseTaskController(daoSession);
         delaunayService = new IncrementalDelaunayService();
         isoService = new SimpleIsoService();
+        preferenceController = new PreferenceController(getContext());
         buildSnackbars();
         mapService.initMap(wrapper);
     }
@@ -114,18 +121,32 @@ public class MapFragment extends Fragment implements ILocationListener {
         if (id == R.id.action_filter) {
             final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(getContext());
             final View dialogRootView = getLayoutInflater(null).inflate(R.layout.filter_window, null);
+            final TextView filterTextView = (TextView) dialogRootView.findViewById(R.id.filter_text);
+            final Button filterButtonView = (Button) dialogRootView.findViewById(R.id.filter_button);
             final ListView listView = (ListView) dialogRootView.findViewById(R.id.list);
+
             final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
             ArrayAdapter<String> adapter = new ArrayAdapter<>(getContext(),
                     android.R.layout.simple_list_item_single_choice,
                     android.R.id.text1,
                     Lists.newArrayList(ssidSet));
             listView.setAdapter(adapter);
-            listView.setItemChecked(selectedSSIDPosition,  Boolean.TRUE);
+            listView.setItemChecked(preferenceController.getFilter(),  Boolean.TRUE);
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    selectedSSIDPosition = position;
+                    preferenceController.setFilter(position);
+                    mapService.recalculate();
+                    dialog.dismiss();
+                }
+            });
+
+            filterTextView.setText(preferenceController.getIsoValues());
+
+            filterButtonView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    preferenceController.setIsoValues(filterTextView.getText().toString());
                     mapService.recalculate();
                     dialog.dismiss();
                 }
@@ -196,7 +217,7 @@ public class MapFragment extends Fragment implements ILocationListener {
             public List<Triangle> then(final Task<List<Triangle>> task) throws Exception {
                 final List<Triangle> result = task.getResult();
                 for (Triangle triangle : result) {
-                    mapService.drawTriangle(triangle);
+                    //mapService.drawTriangle(triangle);
                 }
                 return result;
             }
@@ -204,16 +225,29 @@ public class MapFragment extends Fragment implements ILocationListener {
             @Override
             public List<Isoline> then(Task<List<Triangle>> task) throws Exception {
                 String ssid = null;
+                final int selectedSSIDPosition = preferenceController.getFilter();
                 if (selectedSSIDPosition != 0) {
                     ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
                 }
-                return isoService.extractIsolines(task.getResult(), Lists.newArrayList(-50), ssid);
+                final String selectedIsoValues = preferenceController.getIsoValues();
+                final List<Integer> integerList = Lists.transform(Lists.newArrayList(selectedIsoValues.split(";")), new Function<String, Integer>() {
+                    @Override
+                    public Integer apply(String input) {
+                        Integer result = null;
+                        try {
+                            result = Integer.valueOf(input);
+                        } catch (Exception ignored){}
+                        return result;
+                    }
+                });
+                return isoService.extractIsolines(task.getResult(), integerList, ssid);
             }
         }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, Void>() {
             @Override
             public Void then(Task<List<Isoline>> task) throws Exception {
+                Random rnd = new Random();
                 for (Isoline isoline : task.getResult()) {
-                    mapService.drawIsoline(isoline);
+                    mapService.drawIsoline(isoline, Color.argb(200, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
                 }
                 return null;
             }

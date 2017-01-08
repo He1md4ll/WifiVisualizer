@@ -2,6 +2,7 @@ package edu.hsb.wifivisualizer.map;
 
 import android.graphics.Color;
 import android.location.Location;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
@@ -290,16 +291,13 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     @Override
-    public void drawIsoline(@NotNull Isoline isoline) {
+    public void drawIsoline(@NotNull Isoline isoline, @ColorInt int color) {
         if (map != null && !isoline.getIntersectionList().isEmpty()) {
-            final int colorStroke = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimaryDark);
-            final int colorFill = ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary);
-
             for (Isoline.Intersection intersection : isoline.getIntersectionList()) {
                 boolean draw = Boolean.FALSE;
                 final PolygonOptions polygoneOptions = new PolygonOptions();
-                polygoneOptions.strokeColor(colorStroke);
-                polygoneOptions.fillColor(colorFill);
+                polygoneOptions.strokeColor(Color.TRANSPARENT);
+                polygoneOptions.fillColor(color);
                 if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
                     polygoneOptions.add(intersection.getIntersectionPoint1());
                     polygoneOptions.add(intersection.getIntersectionPoint2());
