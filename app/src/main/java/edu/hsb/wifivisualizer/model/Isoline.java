@@ -6,13 +6,27 @@ import java.util.List;
 
 public class Isoline {
     private List<Intersection> intersectionList;
+    private int isovalue;
 
     public Isoline(List<Intersection> intersectionList) {
         this.intersectionList = intersectionList;
     }
 
+    public Isoline(List<Intersection> intersectionList, int isovalue) {
+        this.intersectionList = intersectionList;
+        this.isovalue = isovalue;
+    }
+
     public List<Intersection> getIntersectionList() {
         return intersectionList;
+    }
+
+    public int getIsovalue() {
+        return isovalue;
+    }
+
+    public void setIsovalue(int isovalue) {
+        this.isovalue = isovalue;
     }
 
     public static class Intersection {

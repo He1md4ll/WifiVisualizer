@@ -27,10 +27,14 @@ import android.widget.TextView;
 
 import com.google.android.gms.common.api.Status;
 import com.google.common.base.Function;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -302,8 +306,18 @@ public class MapFragment extends Fragment implements ILocationListener {
             public Void then(Task<List<Isoline>> task) throws Exception {
                 if (renderIsoline) {
                     Random rnd = new Random();
-                    for (Isoline isoline : task.getResult()) {
-                        mapService.drawIsoline(isoline, Color.argb(255, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
+                    List<Isoline> lines = task.getResult();
+
+                    //Sort Isolines to draw weak signals first
+                    Collections.sort(lines, new Comparator<Isoline>() {
+                        @Override
+                        public int compare(Isoline o1, Isoline o2) {
+                            return o1.getIsovalue() - o2.getIsovalue();
+                        }
+                    });
+
+                    for (Isoline isoline : lines) {
+                        mapService.drawIsoline(isoline, colorMap(isoline.getIsovalue()));
                     }
                 }
                 progressBar.setVisibility(View.GONE);
@@ -320,5 +334,14 @@ public class MapFragment extends Fragment implements ILocationListener {
                 ssidSet.add(info.getSsid());
             }
         }
+    }
+
+    /**
+     * Siehe http://stackoverflow.com/a/13249391
+     * @param signalStrength
+     * @return
+     */
+    private int colorMap(int signalStrength){
+        return android.graphics.Color.HSVToColor(125, new float[]{(float)((double)(signalStrength+100)/(100))*120f,1f,1f});
     }
 }

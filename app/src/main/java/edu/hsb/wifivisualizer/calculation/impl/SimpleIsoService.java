@@ -79,7 +79,7 @@ public class SimpleIsoService implements IIsoService {
                     intersectionList.add(intersection);
                 }
             }
-            Isoline isoline = new Isoline(intersectionList);
+            Isoline isoline = new Isoline(intersectionList, isoValue);
             isolineList.add(isoline);
         }
         return isolineList;
