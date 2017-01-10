@@ -29,8 +29,15 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.MultiLineString;
+import com.vividsolutions.jts.geom.Polygon;
 
 import org.greenrobot.greendao.annotation.NotNull;
 
@@ -39,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -185,7 +193,8 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                     zoomIn = Boolean.FALSE;
                 }
             } else {
-                map.animateCamera(CameraUpdateFactory.newLatLng(myPosition));
+                // TODO: Follow user?
+                //map.animateCamera(CameraUpdateFactory.newLatLng(myPosition));
             }
         }
     }
@@ -285,28 +294,96 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     @Override
-    public void drawIsoline(@NotNull Isoline isoline, @ColorInt int color) {
-        if (map != null && !isoline.getIntersectionList().isEmpty()) {
-            for (Isoline.Intersection intersection : isoline.getIntersectionList()) {
-                boolean draw = Boolean.FALSE;
-                final PolygonOptions polygoneOptions = new PolygonOptions();
-                polygoneOptions.strokeColor(Color.TRANSPARENT);
-                polygoneOptions.fillColor(color);
-                if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
-                    polygoneOptions.add(intersection.getIntersectionPoint1());
-                    polygoneOptions.add(intersection.getIntersectionPoint2());
-                    draw = Boolean.TRUE;
-                }
-                for (final LatLng point : intersection.getCorrespondingPointList()) {
-                    polygoneOptions.add(point);
-                    draw = Boolean.TRUE;
-                }
-                if (draw) {
-                    final LatLng upper = PointUtils.findUpperLeftPoint(polygoneOptions.getPoints());
-                    Collections.sort(polygoneOptions.getPoints(), new LatLngComperator(upper));
-                    map.addPolygon(polygoneOptions);
+    public Task drawIsolineList(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
+        if (map != null && isolineList.size() <= colorList.size()) {
+            final List<Task<List<PolygonOptions>>> taskList = Lists.newArrayList();
+            for (int i = 0; i <isolineList.size(); i++) {
+                final Isoline isoline = isolineList.get(i);
+                final int color = colorList.get(i);
+                if (!isoline.getIntersectionList().isEmpty()) {
+                    taskList.add(Task.callInBackground(new Callable<List<PolygonOptions>>() {
+                        @Override
+                        public List<PolygonOptions> call() throws Exception {
+                            List<List<LatLng>> listList = Lists.newArrayList();
+                            for (Isoline.Intersection intersection : isoline.getIntersectionList()) {
+                                List<LatLng> pointList = Lists.newArrayList();
+                                if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
+                                    pointList.add(intersection.getIntersectionPoint1());
+                                    pointList.add(intersection.getIntersectionPoint2());
+                                }
+                                pointList.addAll(intersection.getCorrespondingPointList());
+                                final LatLng upper = PointUtils.findUpperLeftPoint(pointList);
+                                Collections.sort(pointList, new LatLngComperator(upper));
+                                listList.add(pointList);
+                            }
+                            return unionPolygons(listList, color);
+                        }
+                    }));
                 }
             }
+
+            // Wait for all tasks to finish --> then draw polygons
+            return Task.whenAllResult(taskList).onSuccess(new Continuation<List<List<PolygonOptions>>, Void>() {
+                @Override
+                public Void then(Task<List<List<PolygonOptions>>> task) throws Exception {
+                    for (List<PolygonOptions> polygonList : task.getResult()) {
+                        for (PolygonOptions options: polygonList) {
+                            map.addPolygon(options);
+                        }
+                    }
+                    return null;
+                }
+            }, Task.UI_THREAD_EXECUTOR);
         }
+        return Task.forError(new IllegalStateException("Map not ready"));
+    }
+
+    private List<PolygonOptions> unionPolygons(List<List<LatLng>> polygoneOptions, @ColorInt final int color) {
+        Geometry union = null;
+        final List<PolygonOptions> result = Lists.newArrayList();
+
+        try {
+            for (List<LatLng> pointList : polygoneOptions) {
+                pointList.add(pointList.get(0));
+                final List<Coordinate> coordinateList = Lists.transform(pointList, new Function<LatLng, Coordinate>() {
+                    @Override
+                    public Coordinate apply(LatLng input) {
+                        return new Coordinate(input.latitude, input.longitude);
+                    }
+                });
+                final Polygon polygon = new GeometryFactory().createPolygon(Iterables.toArray(coordinateList, Coordinate.class));
+                if (union == null) {
+                    union = polygon;
+                } else {
+                    union = union.union(polygon);
+                }
+            }
+
+            final List<LinearRing> linearRingList = extractRings(union.getBoundary());
+            for (LinearRing linearRing : linearRingList) {
+                final PolygonOptions options = new PolygonOptions().fillColor(color).strokeColor(Color.TRANSPARENT);
+                for (int i = 1; i < linearRing.getNumPoints(); i++) {
+                    final com.vividsolutions.jts.geom.Point point = linearRing.getPointN(i);
+                    options.add(new LatLng(point.getX(), point.getY()));
+                }
+                result.add(options);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    private List<LinearRing> extractRings(Geometry boundary) {
+        List<LinearRing> result = Lists.newArrayList();
+        if (boundary instanceof LinearRing) {
+            result.add((LinearRing) boundary);
+        } else if (boundary instanceof MultiLineString) {
+            MultiLineString multiLineString = (MultiLineString) boundary;
+            for (int i = 0; i < multiLineString.getNumGeometries(); i++) {
+                result.add((LinearRing) multiLineString.getGeometryN(i));
+            }
+        }
+        return result;
     }
 }

@@ -2,7 +2,6 @@ package edu.hsb.wifivisualizer.map;
 
 import android.content.DialogInterface;
 import android.content.IntentSender;
-import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
@@ -27,16 +26,14 @@ import android.widget.TextView;
 
 import com.google.android.gms.common.api.Status;
 import com.google.common.base.Function;
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 
 import bolts.Continuation;
@@ -305,25 +302,27 @@ public class MapFragment extends Fragment implements ILocationListener {
             @Override
             public Void then(Task<List<Isoline>> task) throws Exception {
                 if (renderIsoline) {
-                    Random rnd = new Random();
                     List<Isoline> lines = task.getResult();
 
                     //Sort Isolines to draw weak signals first
                     Collections.sort(lines, new Comparator<Isoline>() {
                         @Override
                         public int compare(Isoline o1, Isoline o2) {
-                            return o1.getIsovalue() - o2.getIsovalue();
+                            return Ints.compare(o1.getIsovalue(), o2.getIsovalue());
                         }
                     });
-
-                    for (Isoline isoline : lines) {
-                        mapService.drawIsoline(isoline, colorMap(isoline.getIsovalue()));
-                    }
+                    mapService.drawIsolineList(lines, colorMap(lines)).continueWith(new Continuation() {
+                        @Override
+                        public Object then(Task task) throws Exception {
+                            progressBar.setVisibility(View.GONE);
+                            return null;
+                        }
+                    }, Task.UI_THREAD_EXECUTOR);
                 }
-                progressBar.setVisibility(View.GONE);
+
                 return null;
             }
-        }, Task.UI_THREAD_EXECUTOR);
+        });
     }
 
     private void extractSsids(List<Point> pointList) {
@@ -338,10 +337,15 @@ public class MapFragment extends Fragment implements ILocationListener {
 
     /**
      * Siehe http://stackoverflow.com/a/13249391
-     * @param signalStrength
+     * @param lines
      * @return
      */
-    private int colorMap(int signalStrength){
-        return android.graphics.Color.HSVToColor(125, new float[]{(float)((double)(signalStrength+100)/(100))*120f,1f,1f});
+    private List<Integer> colorMap(List<Isoline> lines){
+        return Lists.transform(lines, new Function<Isoline, Integer>() {
+            @Override
+            public Integer apply(Isoline input) {
+                return android.graphics.Color.HSVToColor(125, new float[]{(float)((double)(input.getIsovalue()+100)/(100))*120f,1f,1f});
+            }
+        });
     }
 }
