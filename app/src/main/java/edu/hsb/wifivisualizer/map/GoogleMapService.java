@@ -93,9 +93,9 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             this.map = map;
             map.getUiSettings().setMyLocationButtonEnabled(false);
             map.getUiSettings().setZoomControlsEnabled(true);
-            map.getUiSettings().setScrollGesturesEnabled(true);
-            map.getUiSettings().setRotateGesturesEnabled(true);
-            map.getUiSettings().setZoomGesturesEnabled(true);
+            map.getUiSettings().setAllGesturesEnabled(true);
+            map.getUiSettings().setMapToolbarEnabled(false);
+            map.getUiSettings().setCompassEnabled(true);
             map.setMyLocationEnabled(true);
             MapsInitializer.initialize(fragment.getContext());
             setClickListener();
@@ -128,12 +128,10 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                 }
                 final RadarDataSet barDataSet = new RadarDataSet(barEntryList, "Wifi data");
                 barDataSet.setDrawValues(false);
-                //barDataSet.setValueTextSize(10f);
-                //barDataSet.setValueTextColor(ContextCompat.getColor(fragment.getContext(), R.color.colorAccent));
-                barDataSet.setLineWidth(3f);
-                barDataSet.setFillColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary));
-                barDataSet.setDrawFilled(true);
+                barDataSet.setLineWidth(2f);
                 barDataSet.setColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimaryDark));
+                barDataSet.setDrawFilled(true);
+                barDataSet.setFillColor(ContextCompat.getColor(fragment.getContext(), R.color.colorPrimary));
                 final RadarData barData = new RadarData(barDataSet);
                 barChart.setData(barData);
                 barChart.getDescription().setEnabled(false);

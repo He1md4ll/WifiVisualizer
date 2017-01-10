@@ -10,20 +10,18 @@
         android:text="Marker"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/marker_checkbox"
-        android:checked="true"/>
+        android:id="@+id/marker_checkbox"/>
 
     <CheckBox
         android:text="Triangle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/triangle_checkbox"
-        android:checked="true"/>
+        android:id="@+id/triangle_checkbox"/>
 
     <CheckBox
         android:text="Isoline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/isoline_checkbox"
-        android:checked="true"/>
+        android:enabled="false"/>
 </LinearLayout>

@@ -16,7 +16,7 @@ public class PreferenceController {
     }
 
     public String getIsoValues() {
-        return sharedPreferences.getString(PREF_ISO_VALUES, "");
+        return sharedPreferences.getString(PREF_ISO_VALUES, "-50");
     }
 
     public void setIsoValues(String isoValues) {

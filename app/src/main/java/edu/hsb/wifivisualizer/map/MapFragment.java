@@ -318,8 +318,9 @@ public class MapFragment extends Fragment implements ILocationListener {
                             return null;
                         }
                     }, Task.UI_THREAD_EXECUTOR);
+                } else {
+                    progressBar.setVisibility(View.GONE);
                 }
-
                 return null;
             }
         });
