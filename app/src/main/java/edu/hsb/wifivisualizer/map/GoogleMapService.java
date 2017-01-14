@@ -294,6 +294,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     @Override
     public void drawIsoline(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
         if (map != null && isolineList.size() <= colorList.size()) {
+            map.clear();
             for (int i = 0; i < isolineList.size(); i++) {
                 final int color = colorList.get(i);
                 for (Isoline.Intersection intersection : isolineList.get(i).getIntersectionList()) {
@@ -302,9 +303,6 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                         pointList.add(intersection.getIntersectionPoint1());
                         pointList.add(intersection.getIntersectionPoint2());
                     }
-//                    pointList.addAll(intersection.getCorrespondingPointList());
-//                    final LatLng upper = PointUtils.findUpperLeftPoint(pointList);
-//                    Collections.sort(pointList, new LatLngComperator(upper));
                     map.addPolyline(new PolylineOptions().addAll(pointList).color(color));
                 }
             }
@@ -312,7 +310,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     @Override
-    public Task drawIsolineList(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
+    public Task<Void> drawHeatmap(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
         if (map != null && isolineList.size() <= colorList.size()) {
             final List<Task<List<PolygonOptions>>> taskList = Lists.newArrayList();
             for (int i = 0; i <isolineList.size(); i++) {

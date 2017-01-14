@@ -22,6 +22,7 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.google.android.gms.common.api.Status;
@@ -35,6 +36,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import bolts.Continuation;
 import bolts.Task;
@@ -63,6 +65,8 @@ public class MapFragment extends Fragment implements ILocationListener {
     View wrapper;
     @BindView(R.id.progressBar)
     ProgressBar progressBar;
+    @BindView(R.id.map_seek)
+    SeekBar seekBar;
 
     private IMapService mapService;
     private GoogleLocationProvider googleLocationProvider;
@@ -80,6 +84,8 @@ public class MapFragment extends Fragment implements ILocationListener {
     private boolean renderTriangle = Boolean.TRUE;
     private boolean renderIsoline = Boolean.TRUE;
     private boolean renderHeatmap = Boolean.FALSE;
+
+    private List<Triangle> triangleCache;
 
     public MapFragment() {
         // Required empty public constructor
@@ -105,6 +111,24 @@ public class MapFragment extends Fragment implements ILocationListener {
         preferenceController = new PreferenceController(getContext());
         buildSnackbars();
         mapService.initMap(wrapper);
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (triangleCache != null) {
+                    drawIsolines(triangleCache);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
     }
 
     @Override
@@ -169,10 +193,7 @@ public class MapFragment extends Fragment implements ILocationListener {
             final CheckBox markerCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.marker_checkbox);
             final CheckBox triangleCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.triangle_checkbox);
             final CheckBox isolineCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.isoline_checkbox);
-
-            markerCheckBoxView.setChecked(renderMarker);
-            triangleCheckBoxView.setChecked(renderTriangle);
-            isolineCheckBoxView.setChecked(renderIsoline);
+            final CheckBox heatmapCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.heatmap_checkbox);
 
             markerCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
@@ -190,8 +211,29 @@ public class MapFragment extends Fragment implements ILocationListener {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                     renderIsoline = isChecked;
+                    heatmapCheckBoxView.setEnabled(!isChecked);
+                    heatmapCheckBoxView.setChecked(!isChecked);
+                    if (renderIsoline) {
+                        seekBar.setVisibility(View.VISIBLE);
+                    } else {
+                        seekBar.setVisibility(View.GONE);
+                    }
                 }
             });
+            heatmapCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    renderHeatmap = isChecked;
+                    isolineCheckBoxView.setEnabled(!isChecked);
+                    isolineCheckBoxView.setChecked(!isChecked);
+                }
+            });
+
+            markerCheckBoxView.setChecked(renderMarker);
+            triangleCheckBoxView.setChecked(renderTriangle);
+            isolineCheckBoxView.setChecked(renderIsoline);
+            heatmapCheckBoxView.setChecked(renderHeatmap);
+
             dialogBuilder.setNeutralButton("OK", null);
             final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
             dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
@@ -248,8 +290,35 @@ public class MapFragment extends Fragment implements ILocationListener {
     }
 
     public void calculateTriangulation() {
+        // Indicate process
         progressBar.setVisibility(View.VISIBLE);
-        dbController.getPointList().onSuccess(new Continuation<List<Point>, List<Point>>() {
+        drawPoints().onSuccessTask(new Continuation<List<Point>, Task<List<Triangle>>>() {
+            @Override
+            public Task<List<Triangle>> then(Task<List<Point>> task) throws Exception {
+                return drawTrinagles(task.getResult());
+            }
+        }).onSuccessTask(new Continuation<List<Triangle>, Task<Void>>() {
+            @Override
+            public Task<Void> then(Task<List<Triangle>> task) throws Exception {
+                return drawIsolines(task.getResult());
+            }
+        }).onSuccessTask(new Continuation<Void, Task<Void>>() {
+            @Override
+            public Task<Void> then(Task<Void> task) throws Exception {
+                return drawHeatmap(triangleCache);
+            }
+        }).continueWith(new Continuation<Void, Void>() {
+            @Override
+            public Void then(Task<Void> task) throws Exception {
+                // Hide process indicator --> process chain complete
+                progressBar.setVisibility(View.GONE);
+                return null;
+            }
+        }, Task.UI_THREAD_EXECUTOR);
+    }
+
+    private Task<List<Point>> drawPoints() {
+        return dbController.getPointList().onSuccess(new Continuation<List<Point>, List<Point>>() {
             @Override
             public List<Point> then(final Task<List<Point>> task) throws Exception {
                 final List<Point> result = task.getResult();
@@ -260,17 +329,21 @@ public class MapFragment extends Fragment implements ILocationListener {
                 }
                 return result;
             }
-        }, Task.UI_THREAD_EXECUTOR).onSuccess(new Continuation<List<Point>, List<Triangle>>() {
+        }, Task.UI_THREAD_EXECUTOR);
+    }
+
+    private Task<List<Triangle>> drawTrinagles(final List<Point> pointList) {
+        return Task.callInBackground(new Callable<List<Triangle>>() {
             @Override
-            public List<Triangle> then(Task<List<Point>> task) throws Exception {
-                final List<Point> result = task.getResult();
-                extractSsids(result);
-                return delaunayService.calculate(result);
+            public List<Triangle> call() throws Exception {
+                extractSsids(pointList);
+                return delaunayService.calculate(pointList);
             }
-        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
+        }).onSuccess(new Continuation<List<Triangle>, List<Triangle>>() {
             @Override
             public List<Triangle> then(final Task<List<Triangle>> task) throws Exception {
                 final List<Triangle> result = task.getResult();
+                triangleCache = result;
                 if (renderTriangle) {
                     for (Triangle triangle : result) {
                         mapService.drawTriangle(triangle);
@@ -278,32 +351,56 @@ public class MapFragment extends Fragment implements ILocationListener {
                 }
                 return result;
             }
-        }, Task.UI_THREAD_EXECUTOR).onSuccess(new Continuation<List<Triangle>, List<Isoline>>() {
+        }, Task.UI_THREAD_EXECUTOR);
+    }
+
+    private Task<Void> drawIsolines(final List<Triangle> triangleList) {
+        return Task.callInBackground(new Callable<List<Isoline>>() {
             @Override
-            public List<Isoline> then(Task<List<Triangle>> task) throws Exception {
+            public List<Isoline> call() throws Exception {
                 String ssid = null;
                 final int selectedSSIDPosition = preferenceController.getFilter();
                 if (selectedSSIDPosition != 0) {
                     ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
                 }
-                final String selectedIsoValues = preferenceController.getIsoValues();
-                final List<Integer> integerList = Lists.transform(Lists.newArrayList(selectedIsoValues.split(";")), new Function<String, Integer>() {
-                    @Override
-                    public Integer apply(String input) {
-                        Integer result = null;
-                        try {
-                            result = Integer.valueOf(input);
-                        } catch (Exception ignored){}
-                        return result;
-                    }
-                });
-                return isoService.extractIsolines(task.getResult(), integerList, ssid);
+                final List<Integer> integerList = Lists.newArrayList(seekBar.getProgress() - 100);
+                return isoService.extractIsolines(triangleList, integerList, ssid);
             }
-        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, List<Isoline>>() {
+        }).onSuccess(new Continuation<List<Isoline>, Void>() {
             @Override
-            public List<Isoline> then(Task<List<Isoline>> task) throws Exception {
-                final List<Isoline> lines = task.getResult();
+            public Void then(Task<List<Isoline>> task) throws Exception {
+                List<Isoline> lines = task.getResult();
+                if(renderIsoline) {
+                    mapService.drawIsoline(lines, colorMap(lines, 255));
+                }
+                return null;
+            }
+        },Task.UI_THREAD_EXECUTOR);
+    }
+
+    private Task<Void> drawHeatmap(final List<Triangle> triangleList) {
+        return Task.callInBackground(new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
                 if (renderHeatmap) {
+                    String ssid = null;
+                    final int selectedSSIDPosition = preferenceController.getFilter();
+                    if (selectedSSIDPosition != 0) {
+                        ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
+                    }
+                    final String selectedIsoValues = preferenceController.getIsoValues();
+                    final List<Integer> integerList = Lists.transform(Lists.newArrayList(selectedIsoValues.split(";")), new Function<String, Integer>() {
+                        @Override
+                        public Integer apply(String input) {
+                            Integer result = null;
+                            try {
+                                result = Integer.valueOf(input);
+                            } catch (Exception ignored){}
+                            return result;
+                        }
+                    });
+                    final List<Isoline> lines = isoService.extractIsolines(triangleList, integerList, ssid);
+
                     //Sort Isolines to draw weak signals first
                     Collections.sort(lines, new Comparator<Isoline>() {
                         @Override
@@ -311,27 +408,12 @@ public class MapFragment extends Fragment implements ILocationListener {
                             return Ints.compare(o1.getIsovalue(), o2.getIsovalue());
                         }
                     });
-                    mapService.drawIsolineList(lines, colorMap(lines)).continueWith(new Continuation() {
-                        @Override
-                        public Object then(Task task) throws Exception {
-                            progressBar.setVisibility(View.GONE);
-                            return null;
-                        }
-                    }, Task.UI_THREAD_EXECUTOR);
-                }
-                return lines;
-            }
-        }).onSuccess(new Continuation<List<Isoline>, Void>() {
-            @Override
-            public Void then(Task<List<Isoline>> task) throws Exception {
-                if(renderIsoline) {
-                    List<Isoline> lines = task.getResult();
-                    mapService.drawIsoline(lines, colorMap(lines));
-                    progressBar.setVisibility(View.GONE);
+                    // Wait for drawHeatmap task to finish
+                    mapService.drawHeatmap(lines, colorMap(lines)).waitForCompletion();
                 }
                 return null;
             }
-        },Task.UI_THREAD_EXECUTOR);
+        });
     }
 
     private void extractSsids(List<Point> pointList) {
@@ -344,16 +426,20 @@ public class MapFragment extends Fragment implements ILocationListener {
         }
     }
 
+    private List<Integer> colorMap(List<Isoline> lines){
+        return colorMap(lines, 125);
+    }
+
     /**
      * Siehe http://stackoverflow.com/a/13249391
      * @param lines
      * @return
      */
-    private List<Integer> colorMap(List<Isoline> lines){
+    private List<Integer> colorMap(List<Isoline> lines, final int alpha){
         return Lists.transform(lines, new Function<Isoline, Integer>() {
             @Override
             public Integer apply(Isoline input) {
-                return android.graphics.Color.HSVToColor(125, new float[]{(float)((double)(input.getIsovalue()+100)/(100))*120f,1f,1f});
+                return android.graphics.Color.HSVToColor(alpha, new float[]{(float)((double)(input.getIsovalue()+100)/(100))*120f,1f,1f});
             }
         });
     }
