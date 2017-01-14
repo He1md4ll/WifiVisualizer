@@ -36,7 +36,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiLineString;
+import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
 
 import org.greenrobot.greendao.annotation.NotNull;
@@ -375,14 +375,9 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
                 }
             }
 
-            final List<LinearRing> linearRingList = extractRings(union.getBoundary());
-            for (LinearRing linearRing : linearRingList) {
-                final PolygonOptions options = new PolygonOptions().fillColor(color).strokeColor(Color.TRANSPARENT);
-                for (int i = 1; i < linearRing.getNumPoints(); i++) {
-                    final com.vividsolutions.jts.geom.Point point = linearRing.getPointN(i);
-                    options.add(new LatLng(point.getX(), point.getY()));
-                }
-                result.add(options);
+            final List<Polygon> linearRingList = extractPolygons(union);
+            for (Polygon polygon : linearRingList) {
+                result.add(buildPolygonOptions(polygon, color));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -390,14 +385,31 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
         return result;
     }
 
-    private List<LinearRing> extractRings(Geometry boundary) {
-        List<LinearRing> result = Lists.newArrayList();
-        if (boundary instanceof LinearRing) {
-            result.add((LinearRing) boundary);
-        } else if (boundary instanceof MultiLineString) {
-            MultiLineString multiLineString = (MultiLineString) boundary;
-            for (int i = 0; i < multiLineString.getNumGeometries(); i++) {
-                result.add((LinearRing) multiLineString.getGeometryN(i));
+    private PolygonOptions buildPolygonOptions(Polygon polygon, int color) {
+        final PolygonOptions options = new PolygonOptions().fillColor(color).strokeColor(Color.TRANSPARENT);
+        options.addAll(convertLinearRing((LinearRing) polygon.getExteriorRing()));
+        for (int i = 0; i < polygon.getNumInteriorRing(); i++) {
+            options.addHole(convertLinearRing((LinearRing) polygon.getInteriorRingN(i)));
+        }
+        return options;
+    }
+
+    private List<LatLng> convertLinearRing (LinearRing linearRing) {
+        final List<LatLng> result = Lists.newArrayList();
+        for (int i = 1; i < linearRing.getNumPoints(); i++) {
+            final com.vividsolutions.jts.geom.Point point = linearRing.getPointN(i);
+            result.add(new LatLng(point.getX(), point.getY()));
+        }
+        return result;
+    }
+
+    private List<Polygon> extractPolygons(Geometry polygonStructure) {
+        final List<Polygon> result = Lists.newArrayList();
+        if (polygonStructure instanceof Polygon) {
+            result.add((Polygon) polygonStructure);
+        } else if (polygonStructure instanceof MultiPolygon) {
+            for (int i = 0; i < polygonStructure.getNumGeometries(); i++) {
+                result.add((Polygon) polygonStructure.getGeometryN(i));
             }
         }
         return result;
