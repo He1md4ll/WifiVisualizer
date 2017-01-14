@@ -19,5 +19,6 @@ public interface IMapService {
     void recalculate();
     void drawMarker(@NonNull Point point);
     void drawTriangle(@NonNull Triangle triangle);
+    void drawIsoline(@NotNull final List<Isoline> isolineList, final List<Integer> colorList);
     Task<?> drawIsolineList(@NotNull List<Isoline> isolineList, List<Integer> colorList);
 }

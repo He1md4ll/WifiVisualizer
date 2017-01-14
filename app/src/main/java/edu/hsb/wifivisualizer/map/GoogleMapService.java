@@ -292,6 +292,26 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     @Override
+    public void drawIsoline(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
+        if (map != null && isolineList.size() <= colorList.size()) {
+            for (int i = 0; i < isolineList.size(); i++) {
+                final int color = colorList.get(i);
+                for (Isoline.Intersection intersection : isolineList.get(i).getIntersectionList()) {
+                    List<LatLng> pointList= Lists.newArrayList();
+                    if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
+                        pointList.add(intersection.getIntersectionPoint1());
+                        pointList.add(intersection.getIntersectionPoint2());
+                    }
+//                    pointList.addAll(intersection.getCorrespondingPointList());
+//                    final LatLng upper = PointUtils.findUpperLeftPoint(pointList);
+//                    Collections.sort(pointList, new LatLngComperator(upper));
+                    map.addPolyline(new PolylineOptions().addAll(pointList).color(color));
+                }
+            }
+        }
+    }
+
+    @Override
     public Task drawIsolineList(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
         if (map != null && isolineList.size() <= colorList.size()) {
             final List<Task<List<PolygonOptions>>> taskList = Lists.newArrayList();

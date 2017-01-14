@@ -79,6 +79,7 @@ public class MapFragment extends Fragment implements ILocationListener {
     private boolean renderMarker = Boolean.TRUE;
     private boolean renderTriangle = Boolean.TRUE;
     private boolean renderIsoline = Boolean.TRUE;
+    private boolean renderHeatmap = Boolean.FALSE;
 
     public MapFragment() {
         // Required empty public constructor
@@ -298,12 +299,11 @@ public class MapFragment extends Fragment implements ILocationListener {
                 });
                 return isoService.extractIsolines(task.getResult(), integerList, ssid);
             }
-        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, Void>() {
+        }, Task.BACKGROUND_EXECUTOR).onSuccess(new Continuation<List<Isoline>, List<Isoline>>() {
             @Override
-            public Void then(Task<List<Isoline>> task) throws Exception {
-                if (renderIsoline) {
-                    List<Isoline> lines = task.getResult();
-
+            public List<Isoline> then(Task<List<Isoline>> task) throws Exception {
+                final List<Isoline> lines = task.getResult();
+                if (renderHeatmap) {
                     //Sort Isolines to draw weak signals first
                     Collections.sort(lines, new Comparator<Isoline>() {
                         @Override
@@ -318,12 +318,20 @@ public class MapFragment extends Fragment implements ILocationListener {
                             return null;
                         }
                     }, Task.UI_THREAD_EXECUTOR);
-                } else {
+                }
+                return lines;
+            }
+        }).onSuccess(new Continuation<List<Isoline>, Void>() {
+            @Override
+            public Void then(Task<List<Isoline>> task) throws Exception {
+                if(renderIsoline) {
+                    List<Isoline> lines = task.getResult();
+                    mapService.drawIsoline(lines, colorMap(lines));
                     progressBar.setVisibility(View.GONE);
                 }
                 return null;
             }
-        });
+        },Task.UI_THREAD_EXECUTOR);
     }
 
     private void extractSsids(List<Point> pointList) {
