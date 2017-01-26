@@ -2,6 +2,7 @@ package edu.hsb.wifivisualizer.map;
 
 import android.content.DialogInterface;
 import android.content.IntentSender;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
@@ -29,7 +30,10 @@ import com.google.android.gms.common.api.Status;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Multisets;
 import com.google.common.collect.Sets;
+import com.google.common.collect.TreeMultiset;
 import com.google.common.primitives.Ints;
 
 import java.util.Collections;
@@ -84,6 +88,7 @@ public class MapFragment extends Fragment implements ILocationListener {
     private boolean renderTriangle = Boolean.TRUE;
     private boolean renderIsoline = Boolean.TRUE;
     private boolean renderHeatmap = Boolean.FALSE;
+    private boolean colorSwitch = Boolean.FALSE;
 
     private List<Triangle> triangleCache;
 
@@ -194,6 +199,7 @@ public class MapFragment extends Fragment implements ILocationListener {
             final CheckBox triangleCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.triangle_checkbox);
             final CheckBox isolineCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.isoline_checkbox);
             final CheckBox heatmapCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.heatmap_checkbox);
+            final CheckBox colorSwitchView = (CheckBox) dialogRootView.findViewById(R.id.color_switch);
 
             markerCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
@@ -229,10 +235,18 @@ public class MapFragment extends Fragment implements ILocationListener {
                 }
             });
 
+            colorSwitchView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    colorSwitch = isChecked;
+                }
+            });
+
             markerCheckBoxView.setChecked(renderMarker);
             triangleCheckBoxView.setChecked(renderTriangle);
             isolineCheckBoxView.setChecked(renderIsoline);
             heatmapCheckBoxView.setChecked(renderHeatmap);
+            colorSwitchView.setChecked(colorSwitch);
 
             dialogBuilder.setNeutralButton("OK", null);
             final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
@@ -355,27 +369,29 @@ public class MapFragment extends Fragment implements ILocationListener {
     }
 
     private Task<Void> drawIsolines(final List<Triangle> triangleList) {
-        return Task.callInBackground(new Callable<List<Isoline>>() {
-            @Override
-            public List<Isoline> call() throws Exception {
-                String ssid = null;
-                final int selectedSSIDPosition = preferenceController.getFilter();
-                if (selectedSSIDPosition != 0) {
-                    ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
+        if (!renderIsoline) {
+            return Task.forResult(null);
+        } else {
+            return Task.callInBackground(new Callable<List<Isoline>>() {
+                @Override
+                public List<Isoline> call() throws Exception {
+                    String ssid = null;
+                    final int selectedSSIDPosition = preferenceController.getFilter();
+                    if (selectedSSIDPosition != 0) {
+                        ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
+                    }
+                    final List<Integer> integerList = Lists.newArrayList(seekBar.getProgress() - 100);
+                    return isoService.extractIsolines(triangleList, integerList, ssid);
                 }
-                final List<Integer> integerList = Lists.newArrayList(seekBar.getProgress() - 100);
-                return isoService.extractIsolines(triangleList, integerList, ssid);
-            }
-        }).onSuccess(new Continuation<List<Isoline>, Void>() {
-            @Override
-            public Void then(Task<List<Isoline>> task) throws Exception {
-                List<Isoline> lines = task.getResult();
-                if(renderIsoline) {
-                    mapService.drawIsoline(lines, colorMap(lines, 255));
+            }).onSuccess(new Continuation<List<Isoline>, Void>() {
+                @Override
+                public Void then(Task<List<Isoline>> task) throws Exception {
+                    final List<Isoline> lines = task.getResult();
+                    mapService.drawIsoline(lines.get(0), colorMap(lines, 255).get(0));
+                    return null;
                 }
-                return null;
-            }
-        },Task.UI_THREAD_EXECUTOR);
+            }, Task.UI_THREAD_EXECUTOR);
+        }
     }
 
     private Task<Void> drawHeatmap(final List<Triangle> triangleList) {
@@ -419,11 +435,14 @@ public class MapFragment extends Fragment implements ILocationListener {
     private void extractSsids(List<Point> pointList) {
         ssidSet.clear();
         ssidSet.add("All");
+        final Multiset<String> multiset = TreeMultiset.create();
         for (Point point : pointList) {
             for (WifiInfo info : point.getSignalStrength()) {
                 ssidSet.add(info.getSsid());
+                multiset.add(info.getSsid());
             }
         }
+        ssidSet.addAll(Multisets.copyHighestCountFirst(multiset).elementSet());
     }
 
     private List<Integer> colorMap(List<Isoline> lines){
@@ -436,11 +455,23 @@ public class MapFragment extends Fragment implements ILocationListener {
      * @return
      */
     private List<Integer> colorMap(List<Isoline> lines, final int alpha){
-        return Lists.transform(lines, new Function<Isoline, Integer>() {
-            @Override
-            public Integer apply(Isoline input) {
-                return android.graphics.Color.HSVToColor(alpha, new float[]{(float)((double)(input.getIsovalue()+100)/(100))*120f,1f,1f});
+        if (colorSwitch) {
+            return Lists.transform(lines, new Function<Isoline, Integer>() {
+                @Override
+                public Integer apply(Isoline input) {
+                    return Color.HSVToColor(alpha, new float[]{(float)((double)(input.getIsovalue()+100)/(100))*120f,1f,1f});
+                }
+            });
+        } else {
+            final int colorIntecrement = 120 / lines.size();
+            final List<Integer> result = Lists.newArrayList();
+            for (int i = 0; i < lines.size(); i++) {
+                int colorInt = Color.HSVToColor(alpha, new float[]{
+                        i * colorIntecrement , 1f, 1f
+                });
+                result.add(colorInt);
             }
-        });
+            return result;
+        }
     }
 }

@@ -187,7 +187,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             final LatLng myPosition = new LatLng(location.getLatitude(), location.getLongitude());
             if (zoomIn) {
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(myPosition, INITAL_ZOOM_LEVEL));
-                if (INITAL_ZOOM_LEVEL.equals(map.getCameraPosition().zoom)) {
+                if (map.getCameraPosition().zoom <= INITAL_ZOOM_LEVEL) {
                     zoomIn = Boolean.FALSE;
                 }
             } else {
@@ -292,19 +292,20 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
     }
 
     @Override
-    public void drawIsoline(@NotNull final List<Isoline> isolineList, final List<Integer> colorList) {
-        if (map != null && isolineList.size() <= colorList.size()) {
-            map.clear();
-            for (int i = 0; i < isolineList.size(); i++) {
-                final int color = colorList.get(i);
-                for (Isoline.Intersection intersection : isolineList.get(i).getIntersectionList()) {
-                    List<LatLng> pointList= Lists.newArrayList();
-                    if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
-                        pointList.add(intersection.getIntersectionPoint1());
-                        pointList.add(intersection.getIntersectionPoint2());
-                    }
-                    map.addPolyline(new PolylineOptions().addAll(pointList).color(color));
+    public void drawIsoline(@NotNull final Isoline isoline, final Integer color) {
+        if (map != null) {
+            List<PolylineOptions> polylineOptionsList = Lists.newArrayList();
+            for (Isoline.Intersection intersection : isoline.getIntersectionList()) {
+                List<LatLng> pointList= Lists.newArrayList();
+                if (!intersection.getCorrespondingPointList().isEmpty() && intersection.getCorrespondingPointList().size() < 3) {
+                    pointList.add(intersection.getIntersectionPoint1());
+                    pointList.add(intersection.getIntersectionPoint2());
                 }
+                polylineOptionsList.add(new PolylineOptions().addAll(pointList).color(color));
+            }
+            map.clear();
+            for (PolylineOptions polylineOptions : polylineOptionsList) {
+                map.addPolyline(polylineOptions);
             }
         }
     }

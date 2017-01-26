@@ -29,4 +29,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/heatmap_checkbox"/>
+
+    <CheckBox
+        android:text="Colors depending in iso values"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:id="@+id/color_switch" />
+
 </LinearLayout>
