@@ -187,9 +187,7 @@ public class GoogleMapService implements IMapService, OnMapReadyCallback {
             final LatLng myPosition = new LatLng(location.getLatitude(), location.getLongitude());
             if (zoomIn) {
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(myPosition, INITAL_ZOOM_LEVEL));
-                if (map.getCameraPosition().zoom <= INITAL_ZOOM_LEVEL) {
-                    zoomIn = Boolean.FALSE;
-                }
+                zoomIn = Boolean.FALSE;
             } else {
                 // TODO: Follow user?
                 //map.animateCamera(CameraUpdateFactory.newLatLng(myPosition));

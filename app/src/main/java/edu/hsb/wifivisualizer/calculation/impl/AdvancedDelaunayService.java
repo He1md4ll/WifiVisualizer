@@ -1,10 +1,7 @@
 package edu.hsb.wifivisualizer.calculation.impl;
 
-import com.google.android.gms.maps.model.LatLng;
 import com.google.common.collect.Lists;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 
 import edu.hsb.wifivisualizer.calculation.IDelaunayService;
@@ -31,16 +28,16 @@ public class AdvancedDelaunayService implements IDelaunayService {
     }
 
     //gegenueber vom nachbarn
-    public Triangle triangleOpposite(Triangle triangle, List<Point> pos) {
     /*
+    public Triangle triangleOpposite(Triangle triangle, List<Point> pos) {
         for(Triangle neighbor : graph.contains(triangle)) {
             if(!nicht die nachbarsposition) {
                 return triangle;
             }
         }
-        */
         return null;
     }
+    */
 
     //liste der nachbarn wiedergeben??
     public List<Triangle> neighbours(Triangle triangle) {
@@ -49,7 +46,9 @@ public class AdvancedDelaunayService implements IDelaunayService {
     }
 
     //dreiecke wiedergeben in der liste
+    /*
     public List<Triangle> getTriangleList(Triangle triangle) {
+
         if(wenn dreieck nicht in dem punkt vorhanden ist ) {
             throw new IllegalArgumentException("Punkt nicht gefunden");
         }
@@ -64,12 +63,13 @@ public class AdvancedDelaunayService implements IDelaunayService {
         }
 
         return list;
-
     }
+    */
 
 
 
     //dreiecke lokalisieren fuer aktualisierung (calculate)
+    /*
     public Triangle locateTriangle() {
         Triangle triangle = activeTriangle;
         if(!this.contains(triangle)) triangle = null;
@@ -80,19 +80,15 @@ public class AdvancedDelaunayService implements IDelaunayService {
             visitedOnce.add(triangle);
 
         }
-
     }
+    */
 
 
 
     @Override
     public List<Triangle> calculate(List<Point> triangleList) {
-
-
-
-
-
-      /*  triangleList.add(new Point(null, new LatLng(0,0), 0));
+        /*
+        triangleList.add(new Point(null, new LatLng(0,0), 0));
         triangleList.add(new Point(null, new LatLng(1,1), 1));
         triangleList.add(new Point(null, new LatLng(2,2), 2));
 
@@ -130,12 +126,12 @@ public class AdvancedDelaunayService implements IDelaunayService {
             }
         }
         */
-
-/*
+        return null;
     }
 
 
     //how to get the x, y position??
+    /*
     private float sign(Point p1, Point p2, Point p3) {
         return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
     }
@@ -147,5 +143,6 @@ public class AdvancedDelaunayService implements IDelaunayService {
         b3 = sign(pr, p3, p1) < 0;
 
         return (b1 == b2) && (b2 == b3);
-    }*/
+    }
+    */
 }
