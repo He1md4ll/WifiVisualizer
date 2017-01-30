@@ -8,6 +8,12 @@ import org.greenrobot.greendao.annotation.Id;
 import org.greenrobot.greendao.annotation.Keep;
 import org.greenrobot.greendao.annotation.NotNull;
 
+/**
+ * Data structure to hold wifi data
+ * WifiInfo consists of a ssid string and a strength value
+ * WifiInfo is related to Point (n-to-1)
+ * WifiInfo can be saved in local database --> GreenDao generates local database form entity (see artifact 'org.greenrobot:greendao:3.2.0')
+ */
 @Entity
 public class WifiInfo {
     @Id

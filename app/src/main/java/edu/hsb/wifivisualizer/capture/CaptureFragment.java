@@ -49,6 +49,10 @@ import edu.hsb.wifivisualizer.map.ILocationListener;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.WifiInfo;
 
+/**
+ * View to display information regarding capturing wifi data
+ * User can start and stop capture process
+ */
 public class CaptureFragment extends Fragment implements ILocationListener, IWifiListener {
 
     @BindView(R.id.seekbar_distance)
@@ -62,6 +66,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
     @BindView(R.id.text_captured)
     TextView captured;
 
+    // Default distance value in meter
     private int minDistance = 5;
     private WifiService wifiService;
     private GoogleLocationProvider googleLocationProvider;
@@ -80,41 +85,52 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
 
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        // Inject bound views --> see declaration above
         ButterKnife.bind(this, view);
+        // Instantiate location provider to monitor device location
         googleLocationProvider = new GoogleLocationProvider(this.getContext());
+        // Create connection object to bind to WifiService
         serviceConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName className, IBinder service) {
                 WifiService.LocalBinder binder = (WifiService.LocalBinder) service;
                 wifiService = binder.getService();
+                // Register callback for captured data
                 wifiService.registerListener(CaptureFragment.this);
                 serviceBound = Boolean.TRUE;
             }
 
             @Override
             public void onServiceDisconnected(ComponentName arg0) {
+                // Unregister callback
                 wifiService.unregisterListener(CaptureFragment.this);
                 serviceBound = Boolean.FALSE;
             }
         };
+        // Instantiate database task controller to access local database over asynchronous tasks
         dbController = new DatabaseTaskController(((WifiVisualizerApp) getActivity().getApplication()).getDaoSession());
+        // Register click behaviour for start button
         start.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 started = Boolean.TRUE;
+                // Start listening for location updates
                 googleLocationProvider.startListening(CaptureFragment.this);
+                // Start and bind WifiService over intent
                 Intent intent = new Intent(CaptureFragment.this.getContext(), WifiService.class);
                 getActivity().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
                 start.setEnabled(Boolean.FALSE);
                 stop.setEnabled(Boolean.TRUE);
             }
         });
+        // Register click behaviour for stop button
         stop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 stop();
             }
         });
+        // Display information to user
         captured.setText("Captured locations: " + locationMap.size());
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -139,6 +155,11 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         super.onDestroy();
     }
 
+    /**
+     * Called on location change from location provider
+     * Sets new location if min distance is exceeded
+     * @param location current location
+     */
     @Override
     public void onLocationChanged(Location location) {
         if (location != null) {
@@ -162,9 +183,14 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
     public void onLostConnection() {
     }
 
+    /**
+     * Called from bound WifiService if new wifi data is available
+     * @param resultList captured wifi data from android
+     */
     @Override
     public void onWifiUpdate(List<ScanResult> resultList) {
         if (currentLocation != null) {
+            // Transform android wifi data to our data model --> Limit information to needed properties
             final List<WifiInfo> newWifiInfoList = Lists.transform(resultList, new Function<ScanResult, WifiInfo>() {
                 @Override
                 public WifiInfo apply(ScanResult input) {
@@ -172,12 +198,16 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
                 }
             });
             final List<WifiInfo> currentWifiInfoList = locationMap.get(currentLocation);
+
             if (currentWifiInfoList == null) {
+                // If there is no stored information for current location --> add them to the map
                 locationMap.put(currentLocation, distinctWifiInfoList(newWifiInfoList));
             } else {
+                // If we already have information for current location --> update information in map
                 locationMap.put(currentLocation, updateWifiInfoList(currentWifiInfoList, newWifiInfoList));
             }
 
+            // Display information to user (Handler necessary to get access to android main thread)
             new Handler(getContext().getMainLooper()).post(new Runnable() {
                 @Override
                 public void run() {
@@ -188,9 +218,14 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         }
     }
 
+    /**
+     * Stop capturing wifi data
+     */
     private void stop() {
         if (!started) return;
+        // Stop listening for location updates
         googleLocationProvider.stopListening();
+        // Unbind service
         if (serviceBound) {
             getActivity().unbindService(serviceConnection);
             wifiService.unregisterListener(CaptureFragment.this);
@@ -198,12 +233,16 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         }
         start.setEnabled(Boolean.TRUE);
         stop.setEnabled(Boolean.FALSE);
+
+        // Save captured information in database
         List<Task<Void>> taskList = Lists.newArrayList();
         for (final Map.Entry<Location, List<WifiInfo>> entry : locationMap.entrySet()) {
+            // Create Point location - wifi data combination
             final Location entryLocation = entry.getKey();
             final Point point = new Point(null, new LatLng(entryLocation.getLatitude(),
                     entryLocation.getLongitude()),
                     PointUtils.calculateAverageStrength(entry.getValue()));
+            // Save Point in local database as task (managed by database task controller)
             taskList.add(dbController.savePoint(point).onSuccessTask(new Continuation<Point, Task<List<WifiInfo>>>() {
                 @Override
                 public Task<List<WifiInfo>> then(Task<Point> task) throws Exception {
@@ -224,6 +263,7 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             }));
         }
 
+        // Display information to user if all points successfully saved in local database
         Task.whenAll(taskList).onSuccess(new Continuation<Void, Void>() {
             @Override
             public Void then(Task<Void> task) throws Exception {
@@ -236,15 +276,23 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         }, Task.UI_THREAD_EXECUTOR);
     }
 
+    /**
+     * Update current wifi data using new wifi data (merge)
+     * @param currentList current wifi data
+     * @param newList new wifi data
+     * @return merged wifi data
+     */
     private List<WifiInfo> updateWifiInfoList(List<WifiInfo> currentList, List<WifiInfo> newList) {
         List<WifiInfo> result = Lists.newArrayList(currentList);
         for(final WifiInfo wifiInfo : newList) {
+            // Find Wifi SSID in current list
             final Optional<WifiInfo> wifiInfoOptional = Iterables.tryFind(result, new Predicate<WifiInfo>() {
                 @Override
                 public boolean apply(WifiInfo input) {
                     return wifiInfo.getSsid().equals(input.getSsid());
                 }
             });
+            // Set average wifi strength
             if (wifiInfoOptional.isPresent()) {
                 wifiInfo.setStrength((wifiInfo.getStrength() + wifiInfoOptional.get().getStrength()) / 2);
             } else {
@@ -254,8 +302,14 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
         return result;
     }
 
+    /**
+     * Makes wifi SSID distinct (Combines duplicated SSIDs into one list entry)
+     * @param infoList wifi data with (possibly) duplicated SSIDs
+     * @return distinct wifi data
+     */
     private List<WifiInfo> distinctWifiInfoList(List<WifiInfo> infoList) {
         final List<WifiInfo> result = Lists.newArrayList();
+        // Index wifi data using SSID string
         ImmutableListMultimap<String, WifiInfo> indexedWifiMultimap = Multimaps.index(infoList, new Function<WifiInfo, String>() {
             @Override
             public String apply(WifiInfo input) {
@@ -263,8 +317,10 @@ public class CaptureFragment extends Fragment implements ILocationListener, IWif
             }
         });
         for (Map.Entry<String, Collection<WifiInfo>> entry: indexedWifiMultimap.asMap().entrySet()) {
+            // Get collection if wifi data entries for a single SSID
             final Collection<WifiInfo> entryValue = entry.getValue();
             if (!entryValue.isEmpty()) {
+                // Calculate average signal strength and create new WifiInfo object for distinct result
                 WifiInfo infoEntry = new WifiInfo();
                 int averageStrength = 0;
                 for (WifiInfo info : entryValue) {

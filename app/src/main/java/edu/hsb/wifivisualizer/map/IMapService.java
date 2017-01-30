@@ -13,6 +13,9 @@ import edu.hsb.wifivisualizer.model.Isoline;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 
+/**
+ * Interface to manage drawing lifecycle and draw data on a map
+ */
 public interface IMapService {
     void initMap(View wrapper);
     void centerOnLocation(@NonNull Location location);

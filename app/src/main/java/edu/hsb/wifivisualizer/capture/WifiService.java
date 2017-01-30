@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+/**
+ * Service to scan for wifi data using android WifiManger
+ * Forwards scan results to registered listeners
+ */
 public class WifiService extends Service {
 
     private final IBinder binder = new LocalBinder();
@@ -26,6 +30,7 @@ public class WifiService extends Service {
     private Runnable wifiScan = new Runnable() {
         @Override
         public void run() {
+            // Tells android WifiManger to start wifi scan --> sends broadcast when finished
             wifiManager.startScan();
         }
     };
@@ -39,15 +44,19 @@ public class WifiService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        // Get android WifiManager to capture wifi data
         wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+        // Create and register broadcast receiver to get captured data
         wifiReceiver = new WifiReceiver();
         registerReceiver(wifiReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        // Start scan for wifi data
         executor.execute(wifiScan);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
+        // Stop scan and unregister broadcast receiver from android
         executor.shutdown();
         unregisterReceiver(wifiReceiver);
     }

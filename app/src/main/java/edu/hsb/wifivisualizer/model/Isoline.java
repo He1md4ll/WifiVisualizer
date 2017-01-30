@@ -4,6 +4,11 @@ import com.google.android.gms.maps.model.LatLng;
 
 import java.util.List;
 
+/**
+ * Data structure to hold isoline information
+ * Isoline consists of (multiple) Intersections
+ * Intersections and the related iso value define the Isoline
+ */
 public class Isoline {
     private List<Intersection> intersectionList;
     private int isovalue;
@@ -29,6 +34,12 @@ public class Isoline {
         this.isovalue = isovalue;
     }
 
+    /**
+     * Data structure to hold triangle intersection information
+     * One Intersection can have 2intersection points and multiple corresponding points
+     * Corresponding points are point inside the isoline border (value less than iso value)
+     * Corresponding points are used to draw the heatmap
+     */
     public static class Intersection {
         private LatLng intersectionPoint1;
         private LatLng intersectionPoint2;

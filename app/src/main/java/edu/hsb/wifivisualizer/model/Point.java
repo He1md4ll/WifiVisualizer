@@ -21,6 +21,11 @@ import edu.hsb.wifivisualizer.database.DaoSession;
 import edu.hsb.wifivisualizer.database.PointDao;
 import edu.hsb.wifivisualizer.database.WifiInfoDao;
 
+/**
+ * Data structure to hold location and wifi data
+ * One point always has a location, the corresponding wifi data and the average signal strength
+ * Point can be saved in local database --> GreenDao generates local database form entity (see artifact 'org.greenrobot:greendao:3.2.0')
+ */
 @Entity
 public class Point {
 

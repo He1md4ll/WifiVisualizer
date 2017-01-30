@@ -18,6 +18,11 @@ import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResult;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 
+/**
+ * Provides current phone location using Google location services
+ * Provides location to listening objects
+ * Hides possible location errors
+ */
 public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener, ResultCallback<LocationSettingsResult> {
 
     private static final String TAG = GoogleLocationProvider.class.getSimpleName();
@@ -29,12 +34,14 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
     private LocationRequest locationRequest;
 
     public GoogleLocationProvider(Context context) {
+        // Create google api client to get access to location service
         googleApiClient = new GoogleApiClient.Builder(context)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(LocationServices.API)
                 .build();
 
+        // Define location properties
         locationRequest = new LocationRequest();
         locationRequest.setInterval(LOCATION_UPDATE_MIN_TIME);
         locationRequest.setSmallestDisplacement(LOCATION_UPDATE_MIN_DISTANCE);
@@ -42,7 +49,7 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
 
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(locationRequest);
-
+        // Check if phone supports location updates in current state
         final PendingResult<LocationSettingsResult> result =
                 LocationServices.SettingsApi.checkLocationSettings(googleApiClient,
                         builder.build());
@@ -50,11 +57,18 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
         result.setResultCallback(this);
     }
 
+    /**
+     * Register location listener and start getting location updates from google location api
+     * @param listener location listener
+     */
     public void startListening(final ILocationListener listener) {
         this.listener = listener;
         googleApiClient.connect();
     }
 
+    /**
+     * Unregister listener and disconnect from location api
+     */
     public void stopListening() {
         if (googleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
@@ -62,6 +76,9 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
         }
     }
 
+    /**
+     * After successfull connection start listening for location updates from google location api
+     */
     @Override
     public void onConnected(Bundle connectionHint) {
         try {
@@ -84,6 +101,10 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
         listener.onLostConnection();
     }
 
+    /**
+     * Inform listener about location update
+     * @param location new location
+     */
     @Override
     public void onLocationChanged(Location location) {
         if (location != null) {
@@ -91,6 +112,10 @@ public class GoogleLocationProvider implements GoogleApiClient.ConnectionCallbac
         }
     }
 
+    /**
+     * Callback after settings resolution (when user needs to activate location service and so on...)
+     * @param locationSettingsResult
+     */
     @Override
     public void onResult(@NonNull LocationSettingsResult locationSettingsResult) {
         final Status status = locationSettingsResult.getStatus();

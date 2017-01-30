@@ -60,6 +60,15 @@ import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 import edu.hsb.wifivisualizer.model.WifiInfo;
 
+/**
+ * View to display map together with captured points and resulting calculations (trinagles, isoline, heatmap)
+ * User can configure witch information is displayed
+ * User can filter captured information by a specific SSID and iso values
+ *
+ * This view provides to main modes:
+ * 1. Draw heatmap from captured data using SSID filter und defined iso values in filter. Markers and triangles are optional.
+ * 2. Draw a single iso line from captured data using SSID filter and iso value from displayed seek bar. Only the iso line is displayed.
+ */
 public class MapFragment extends Fragment implements ILocationListener {
 
     public static final String TAG = MapFragment.class.getSimpleName();
@@ -105,20 +114,30 @@ public class MapFragment extends Fragment implements ILocationListener {
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
+        // Inject bound views from above
         ButterKnife.bind(this, view);
+        // Create service to draw data on map
         mapService = new GoogleMapService(this);
+        // Create location provider to receive location updates (zoom in on user location)
         googleLocationProvider = new GoogleLocationProvider(this.getContext());
 
+        // Create database controller to access local database
         final DaoSession daoSession = ((WifiVisualizerApp) getActivity().getApplication()).getDaoSession();
         dbController = new DatabaseTaskController(daoSession);
+        // Create service to compute delaunay triangulation
         delaunayService = new IncrementalDelaunayService();
+        // Create service to compute iso lines from triangles (triangle intersections)
         isoService = new SimpleIsoService();
+        // Create preference controller to access app properties
         preferenceController = new PreferenceController(getContext());
         buildSnackbars();
+        // Initialize map to trigger data drawing (map will call 'calculate' method when ready)
         mapService.initMap(wrapper);
+        // Set on value change behaviour for seek bar for mode 2 (only draw one iso line from seek bar value)
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                // Calculation of isoline needs previously computed triangles
                 if (triangleCache != null) {
                     drawIsolines(triangleCache);
                 }
@@ -136,27 +155,43 @@ public class MapFragment extends Fragment implements ILocationListener {
         });
     }
 
+    /**
+     * Starts listening for location updates from location provider
+     */
     @Override
     public void onStart() {
         googleLocationProvider.startListening(this);
         super.onStart();
     }
 
+    /**
+     * Stops listening for location updates
+     */
     @Override
     public void onStop() {
         super.onStop();
         googleLocationProvider.stopListening();
     }
 
+    /**
+     * Sets menu in toolbar of app (FILTER and RENDER options)
+     */
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.toolbar, menu);
     }
 
+    /**
+     * Called by android when user selects menu item in toolbar
+     * @param item selected menu item
+     * @return handled?
+     */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 
+        // FILTER pressed
+        // Create dialog with fields for iso values and ssid list (singel choise list --> user can select one item in list)
         if (id == R.id.action_filter) {
             final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(getContext());
             final View dialogRootView = getLayoutInflater(null).inflate(R.layout.filter_window, null);
@@ -165,16 +200,20 @@ public class MapFragment extends Fragment implements ILocationListener {
             final ListView listView = (ListView) dialogRootView.findViewById(R.id.list);
 
             final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
+            // Fill SSID list with data from ssidSet
             ArrayAdapter<String> adapter = new ArrayAdapter<>(getContext(),
                     android.R.layout.simple_list_item_single_choice,
                     android.R.id.text1,
                     Lists.newArrayList(ssidSet));
             listView.setAdapter(adapter);
+            // Select previously selected value
             listView.setItemChecked(preferenceController.getFilter(),  Boolean.TRUE);
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                    // Save selection in app preferences to get access to choice later
                     preferenceController.setFilter(position);
+                    // Trigger recalculation for map
                     mapService.recalculate();
                     dialog.dismiss();
                 }
@@ -185,15 +224,20 @@ public class MapFragment extends Fragment implements ILocationListener {
             filterButtonView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    // Save specified is values in app preferences
                     preferenceController.setIsoValues(filterTextView.getText().toString());
+                    // Trigger recalculation for map
                     mapService.recalculate();
                     dialog.dismiss();
                 }
             });
             dialog.show();
             return true;
+        // RENDER pressed
+        // Create dialog with choice boxes to configure what is displayed on map
         } else if (id == R.id.action_render) {
             final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(getContext());
+            // Find and create choice boxes
             final View dialogRootView = getLayoutInflater(null).inflate(R.layout.render_window, null);
             final CheckBox markerCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.marker_checkbox);
             final CheckBox triangleCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.triangle_checkbox);
@@ -201,6 +245,7 @@ public class MapFragment extends Fragment implements ILocationListener {
             final CheckBox heatmapCheckBoxView = (CheckBox) dialogRootView.findViewById(R.id.heatmap_checkbox);
             final CheckBox colorSwitchView = (CheckBox) dialogRootView.findViewById(R.id.color_switch);
 
+            // Each choice box state is reflected by one boolean value
             markerCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -213,6 +258,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                     renderTriangle = isChecked;
                 }
             });
+            // Either iso line or heat map is active (2 modes) --> hide or show seek bar
             isolineCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -226,6 +272,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                     }
                 }
             });
+            // Either iso line or heat map is active (2 modes)
             heatmapCheckBoxView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -234,7 +281,6 @@ public class MapFragment extends Fragment implements ILocationListener {
                     isolineCheckBoxView.setChecked(!isChecked);
                 }
             });
-
             colorSwitchView.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -242,6 +288,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                 }
             });
 
+            // Set in fragment reflected state to choice boxes on dialog open
             markerCheckBoxView.setChecked(renderMarker);
             triangleCheckBoxView.setChecked(renderTriangle);
             isolineCheckBoxView.setChecked(renderIsoline);
@@ -250,6 +297,7 @@ public class MapFragment extends Fragment implements ILocationListener {
 
             dialogBuilder.setNeutralButton("OK", null);
             final AlertDialog dialog = dialogBuilder.setView(dialogRootView).create();
+            // Trigger recalculation on dialog close
             dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
                 @Override
                 public void onDismiss(DialogInterface dialog) {
@@ -261,6 +309,11 @@ public class MapFragment extends Fragment implements ILocationListener {
         return super.onOptionsItemSelected(item);
     }
 
+    /**
+     * Called on location change from location provider
+     * Centers map on current location
+     * @param location current location
+     */
     @Override
     public void onLocationChanged(Location location) {
         if (location != null) {
@@ -269,6 +322,10 @@ public class MapFragment extends Fragment implements ILocationListener {
         }
     }
 
+    /**
+     * User needs to activate location services
+     * @param status
+     */
     @Override
     public void onResolutionNeeded(Status status) {
         try {
@@ -279,6 +336,9 @@ public class MapFragment extends Fragment implements ILocationListener {
         }
     }
 
+    /**
+     * Called when location provider can not get location
+     */
     @Override
     public void onProviderUnavailable() {
         showLocationRequiredSnackbar();
@@ -293,6 +353,9 @@ public class MapFragment extends Fragment implements ILocationListener {
         requiredSnackbar.show();
     }
 
+    /**
+     * Display location and permission information to user in snackbar
+     */
     private void buildSnackbars() {
         final int color = ContextCompat.getColor(this.getActivity(), R.color.colorPrimary);
         locationSnackbar = Snackbar.make(wrapper, "Searching for location", Snackbar.LENGTH_INDEFINITE);
@@ -303,34 +366,50 @@ public class MapFragment extends Fragment implements ILocationListener {
         requiredSnackbar.getView().setBackgroundColor(color);
     }
 
-    public void calculateTriangulation() {
-        // Indicate process
+    /**
+     * Main method to compute triangulation, iso line extraction and heatmap generation
+     * Method is always called from map service
+     * Method used map service to draw computed data on map
+     * Method uses task chaining (facebook bolts library 'com.parse.bolts:bolts-tasks:1.4.0')
+     */
+    public void calculate() {
+        // Indicate computing process
         progressBar.setVisibility(View.VISIBLE);
+        // Draw points on map
         drawPoints().onSuccessTask(new Continuation<List<Point>, Task<List<Triangle>>>() {
             @Override
             public Task<List<Triangle>> then(Task<List<Point>> task) throws Exception {
+                // On success return drawTrinagles task
                 return drawTrinagles(task.getResult());
             }
         }).onSuccessTask(new Continuation<List<Triangle>, Task<Void>>() {
             @Override
             public Task<Void> then(Task<List<Triangle>> task) throws Exception {
+                // On success return drawIsolines task
                 return drawIsolines(task.getResult());
             }
         }).onSuccessTask(new Continuation<Void, Task<Void>>() {
             @Override
             public Task<Void> then(Task<Void> task) throws Exception {
+                // On success return drawHeatmap task
                 return drawHeatmap(triangleCache);
             }
         }).continueWith(new Continuation<Void, Void>() {
             @Override
             public Void then(Task<Void> task) throws Exception {
-                // Hide process indicator --> process chain complete
+                // In any case hide process indicator after calculation --> process chain complete
                 progressBar.setVisibility(View.GONE);
                 return null;
             }
         }, Task.UI_THREAD_EXECUTOR);
     }
 
+    /**
+     * Method defines task to draw points as markers on map using map service
+     * Points are initially loaded from database and returned with the task
+     * Points are only drawn if related render option is active
+     * @return Task that stores the loaded point list
+     */
     private Task<List<Point>> drawPoints() {
         return dbController.getPointList().onSuccess(new Continuation<List<Point>, List<Point>>() {
             @Override
@@ -346,6 +425,13 @@ public class MapFragment extends Fragment implements ILocationListener {
         }, Task.UI_THREAD_EXECUTOR);
     }
 
+    /**
+     * Method defines task to draw triangles on map using map service
+     * Triangles are computed from previously loaded points using delaunay service
+     * Triangles are onyl drawn if related render option is active
+     * @param pointList Point list
+     * @return Task that sores the computed triangles
+     */
     private Task<List<Triangle>> drawTrinagles(final List<Point> pointList) {
         return Task.callInBackground(new Callable<List<Triangle>>() {
             @Override
@@ -368,6 +454,14 @@ public class MapFragment extends Fragment implements ILocationListener {
         }, Task.UI_THREAD_EXECUTOR);
     }
 
+    /**
+     * Method defines task to draw Isoline on map using map service
+     * Isoline is computed from previously computed triangles using iso service
+     * User can select SSID in filter --> selected filter option is loaded from app preferences
+     * Isoline is only drawn in mode 2 (iso line render option active)
+     * @param triangleList Triangle list
+     * @return Task that sores the computed Isoline
+     */
     private Task<Void> drawIsolines(final List<Triangle> triangleList) {
         if (!renderIsoline) {
             return Task.forResult(null);
@@ -394,6 +488,14 @@ public class MapFragment extends Fragment implements ILocationListener {
         }
     }
 
+    /**
+     * Method defines task to draw Heatmap on map using map service
+     * Heatmap is computed from isolines (triangle intersections) which are computed from previously computed triangles
+     * User can select SSID in filter --> selected filter option is loaded from app preferences
+     * Heatmap is only drawn in mode 1 (heatmap render option active)
+     * @param triangleList Triangle list
+     * @return Task without value (user can wait for task to finish)
+     */
     private Task<Void> drawHeatmap(final List<Triangle> triangleList) {
         return Task.callInBackground(new Callable<Void>() {
             @Override
@@ -404,6 +506,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                     if (selectedSSIDPosition != 0) {
                         ssid = Iterables.get(ssidSet, selectedSSIDPosition, null);
                     }
+                    // Get selected iso values and save them to a list
                     final String selectedIsoValues = preferenceController.getIsoValues();
                     final List<Integer> integerList = Lists.transform(Lists.newArrayList(selectedIsoValues.split(";")), new Function<String, Integer>() {
                         @Override
@@ -424,7 +527,7 @@ public class MapFragment extends Fragment implements ILocationListener {
                             return Ints.compare(o1.getIsovalue(), o2.getIsovalue());
                         }
                     });
-                    // Wait for drawHeatmap task to finish
+                    // Wait for drawHeatmap task to finish then continue
                     mapService.drawHeatmap(lines, colorMap(lines)).waitForCompletion();
                 }
                 return null;
@@ -432,6 +535,13 @@ public class MapFragment extends Fragment implements ILocationListener {
         });
     }
 
+    /**
+     * Extracts all SSIDs from the provided wifi information of all points
+     * Method is used to create filter ssid filter options
+     * Method uses TreeMultiset (Google Guava Collection type) to sort values by number of occurrences
+     * method uses Set to have distinct SSID values
+     * @param pointList
+     */
     private void extractSsids(List<Point> pointList) {
         ssidSet.clear();
         ssidSet.add("All");
@@ -450,9 +560,14 @@ public class MapFragment extends Fragment implements ILocationListener {
     }
 
     /**
-     * Siehe http://stackoverflow.com/a/13249391
-     * @param lines
-     * @return
+     * Provides colors for isolines
+     * Method supports 2 modes:
+     * 1. Color is related to iso value of Isoline (low value = red, high value = green)
+     * 2. Color is related to count of Isolines (first Isoline red, last isoline green, in between values based on distance to other iso values)
+     * Also see http://stackoverflow.com/a/13249391 for mor information regarding HSVToColor
+     * @param lines list of Isolines
+     * @param alpha Alpha value of color
+     * @return Color list (same size as lines)
      */
     private List<Integer> colorMap(List<Isoline> lines, final int alpha){
         if (colorSwitch) {
