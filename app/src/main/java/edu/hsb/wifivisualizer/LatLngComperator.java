@@ -4,6 +4,11 @@ import com.google.android.gms.maps.model.LatLng;
 
 import java.util.Comparator;
 
+/**
+ * Comperator to make LatLng points comparable for sort algorithms
+ * Points are sorted in clockwise-order
+ * Clockwise-order is needed for merging and drawing polygons
+ */
 public class LatLngComperator implements Comparator<LatLng> {
 
     private LatLng upper;
@@ -12,6 +17,9 @@ public class LatLngComperator implements Comparator<LatLng> {
         this.upper = upper;
     }
 
+    /**
+     * Method called by sort algorithm to compare two values
+     */
     @Override
     public int compare(LatLng o1, LatLng o2) {
         // Exclude the 'upper' point from the sort (which should come first).
@@ -39,12 +47,22 @@ public class LatLngComperator implements Comparator<LatLng> {
         return m1 > m2 ? -1 : 1;
     }
 
+    /**
+     * Calculates distance between upper point and provided point
+     * @param that Provided point
+     * @return Distance
+     */
     private double distance(LatLng that) {
         double dX = that.latitude - this.upper.latitude;
         double dY = that.longitude - this.upper.longitude;
         return Math.sqrt((dX*dX) + (dY*dY));
     }
 
+    /**
+     * Calculates slope between upper point and provided point
+     * @param that Provided point
+     * @return Slope
+     */
     private double slope(LatLng that) {
         double dX = that.latitude - this.upper.latitude;
         double dY = that.longitude - this.upper.longitude;

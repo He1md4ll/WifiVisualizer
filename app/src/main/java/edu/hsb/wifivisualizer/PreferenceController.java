@@ -4,6 +4,10 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
+/**
+ * Controller to manage app preferences
+ * Gets and sets filter and iso values in shared preferences of the app
+ */
 public class PreferenceController {
 
     public static final String PREF_FILTER = "pref_filter";

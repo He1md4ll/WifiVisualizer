@@ -7,11 +7,18 @@ import org.greenrobot.greendao.database.Database;
 import edu.hsb.wifivisualizer.database.DaoMaster;
 import edu.hsb.wifivisualizer.database.DaoSession;
 
+/**
+ * Main context of the app
+ * Manages database session (that is needed to access local generated database)
+ */
 public class WifiVisualizerApp extends Application {
 
     public static final String DATABASE_NAME = "wifi-db";
     private DaoSession daoSession;
 
+    /**
+     * First method that is called in the app --> Creates database session
+     */
     @Override
     public void onCreate() {
         super.onCreate();

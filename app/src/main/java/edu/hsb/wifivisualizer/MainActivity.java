@@ -47,6 +47,10 @@ import edu.hsb.wifivisualizer.map.MapFragment;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.WifiInfo;
 
+/**
+ * Main Activity of the app that is started on app launch
+ * Manages user menu, user interactions and displayed fragments and views
+ */
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
@@ -76,17 +80,27 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Injects bound views defined above
         ButterKnife.bind(this);
+
+        // Create toolbar and navigation menu
         setSupportActionBar(toolbar);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawer.addDrawerListener(toggle);
         toggle.syncState();
         navigationView.setNavigationItemSelectedListener(this);
+
+        // Create database controller to access local database
         dbController = new DatabaseTaskController(((WifiVisualizerApp) getApplication()).getDaoSession());
+        // Check if app has all needed permissions
         checkLocationPermission();
     }
 
+    /**
+     * Called when user taps on the back button
+     * Closes drawer if open, or closes app on double tap on back button
+     */
     @Override
     public void onBackPressed() {
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -94,8 +108,10 @@ public class MainActivity extends AppCompatActivity
             drawer.closeDrawer(GravityCompat.START);
         } else {
             if (exit)
+                // Minimize app
                 moveTaskToBack(Boolean.TRUE);
             else {
+                // Ask if user really wants to close the app
                 Toast.makeText(this, "Drück erneut auf Zurück um die App zu beenden.",
                         Toast.LENGTH_SHORT).show();
                 exit = true;
@@ -109,28 +125,39 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Handle clicks in and on the navigation menu
+     * @param item selected item
+     * @return handled?
+     */
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         switch (item.getItemId()) {
             case R.id.nav_capture:
+                // Replace current fragment with capture fragment
                 replaceFragment(new CaptureFragment());
                 break;
             case R.id.nav_map:
+                // Replace current fragment with map fragment
                 replaceFragment(new MapFragment());
                 break;
             case R.id.nav_import:
+                // Check user permission and open dialog to import data into local database
                 checkStoragePermission(false);
                 break;
             case R.id.nav_export:
+                // Check user permission and export data from local database
                 checkStoragePermission(true);
                 break;
             case R.id.nav_clear:
+                // remove all data from local database and give feedback to user
                 dbController.clearAll().continueWith(new Continuation<Void, Void>() {
                     @Override
                     public Void then(Task<Void> task) throws Exception {
                         Toast.makeText(MainActivity.this, task.isCompleted() && !task.isFaulted() ?
                                 "Successfully deleted all data" :
                                 "Could not delete data", Toast.LENGTH_LONG).show();
+                        // Load map fragment after data clear to reset map view
                         replaceFragment(new MapFragment());
                         return null;
                     }
@@ -143,10 +170,18 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
 
+    /**
+     * Called after permission resolution by user
+     * User can confirm or decline permissions
+     * @param requestCode Callback code
+     * @param permissions Requested permissions
+     * @param grantResults Granted permission results
+     */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
         switch (requestCode) {
             case PERMISSIONS_ACCESS_FINE_LOCATION:
+                // App allowed to monitor phone location?
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     hasPermission = Boolean.TRUE;
                     replaceFragment(new MapFragment());
@@ -155,6 +190,7 @@ public class MainActivity extends AppCompatActivity
                 }
                 break;
             case PERMISSIONS_WRITE_EXTERNAL_STORAGE:
+                // App allowed to access phone storage?
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Log.i(TAG, "Write permission granted");
                 } else {
@@ -164,10 +200,17 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Callback for results from other apps
+     * @param requestCode Callback code
+     * @param resultCode Successful?
+     * @param data Optional data
+     */
     @Override
     public void onActivityResult(int requestCode, int resultCode, final Intent data) {
         switch (requestCode) {
             case GOOGLE_RESOLUTION:
+                // Could location problem be resolved?
                 switch (resultCode) {
                     case Activity.RESULT_OK:
                         Log.i(TAG, "User agreed to make required location settings changes.");
@@ -178,13 +221,17 @@ public class MainActivity extends AppCompatActivity
                 }
                 break;
             case FILE_CODE:
+                // Could selected file be loaded?
                 switch (resultCode) {
                     case Activity.RESULT_OK:
                         Task.callInBackground(new Callable<Void>() {
                             @Override
                             public Void call() throws Exception {
+                                // Uri of selected file
                                 final Uri uri = data.getData();
+                                // Load file from uri
                                 final String importString = Files.toString(new File(uri.getPath()), Charsets.UTF_8);
+                                // Import file into local database --> Parse json data and save points and wifi info
                                 final List<Point> pointList = new Gson().fromJson(importString, new TypeToken<List<Point>>(){}.getType());
                                 for (final Point point : pointList) {
                                     point.setId(null);
@@ -206,9 +253,11 @@ public class MainActivity extends AppCompatActivity
                         }).continueWith(new Continuation<Void, Void>() {
                             @Override
                             public Void then(Task<Void> task) throws Exception {
+                                // Display import result to user
                                 Toast.makeText(MainActivity.this, task.isCompleted() && !task.isFaulted() ?
                                         "Successfully inserted points from selected file" :
                                         "Could not insert points", Toast.LENGTH_LONG).show();
+                                // Reset map view by replacing the fragment
                                 replaceFragment(new MapFragment());
                                 return null;
                             }
@@ -218,7 +267,12 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Replace current fragment with new one using android fragment manager transaction system
+     * @param fragment
+     */
     private void replaceFragment(Fragment fragment) {
+        // Replace if app has location permission or display error to user
         if (hasPermission) {
             fragmentView.setVisibility(View.VISIBLE);
             getSupportFragmentManager().beginTransaction().replace(R.id.fragment_placeholder, fragment).commitAllowingStateLoss();
@@ -227,6 +281,10 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Check if app has permission to access phone location
+     * If permission not granted try to resolve this issue by asking the user for permission using 'requestPermissions'
+     */
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -238,6 +296,9 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Displays location error to user --> app can not operate without phone location
+     */
     private void showLocationRequiredAlert() {
         new AlertDialog.Builder(this)
                 .setTitle("Location required")
@@ -252,7 +313,13 @@ public class MainActivity extends AppCompatActivity
                 .show();
     }
 
+    /**
+     * Export data from local database to json file
+     * File is saved to app related folder on external device storage
+     * Data is converted to json by google Gson implementation (library 'com.google.code.gson:gson:2.8.0')
+     */
     private void exportData() {
+        // Load all points from database and save them to json file
         dbController.getPointList().onSuccess(new Continuation<List<Point>, Void>() {
             @Override
             public Void then(Task<List<Point>> task) throws Exception {
@@ -269,6 +336,7 @@ public class MainActivity extends AppCompatActivity
         }, Task.BACKGROUND_EXECUTOR).continueWith(new Continuation<Void, Void>() {
             @Override
             public Void then(Task<Void> task) throws Exception {
+                // Inform user about export reuslt
                 Toast.makeText(MainActivity.this, task.isCompleted() && !task.isFaulted() ?
                         "Successfully saved data to file" :
                         "Could not save data to file", Toast.LENGTH_LONG).show();
@@ -277,6 +345,10 @@ public class MainActivity extends AppCompatActivity
         }, Task.UI_THREAD_EXECUTOR);
     }
 
+    /**
+     * Import data to local database from selected file on external device storage
+     * Implementation to pick a file from storage is provided by library 'com.nononsenseapps:filepicker:3.1.0'
+     */
     private void importData() {
         final Intent intent = new Intent(this, FilePickerActivity.class);
         intent.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, false);
@@ -286,6 +358,12 @@ public class MainActivity extends AppCompatActivity
         startActivityForResult(intent, FILE_CODE);
     }
 
+    /**
+     * Checks app permission to read and write external phone storage
+     * If permission is not granted it is requested (same as location above)
+     * Method supports read and write variant
+     * @param write Write or read?
+     */
     private void checkStoragePermission(boolean write) {
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
