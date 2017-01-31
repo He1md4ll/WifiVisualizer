@@ -8,6 +8,12 @@ import edu.hsb.wifivisualizer.calculation.IDelaunayService;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 
+/**
+ * Service to calculate Delauney triangles from a given list of points.
+ * This implementation uses the incemental version of the algorithm.
+ *
+ * Due to time and comprehension issues the implementation is not finished // Eda
+ */
 public class AdvancedDelaunayService implements IDelaunayService {
 
     private Triangle activeTriangle = null;

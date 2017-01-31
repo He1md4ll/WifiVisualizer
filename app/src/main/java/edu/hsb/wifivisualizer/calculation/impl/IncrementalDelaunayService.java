@@ -16,8 +16,18 @@ import edu.hsb.wifivisualizer.calculation.IDelaunayService;
 import edu.hsb.wifivisualizer.model.Point;
 import edu.hsb.wifivisualizer.model.Triangle;
 
+/**
+ * Service to calculate Delauney triangles from a given list of points.
+ * This implementation uses the incemental version of the algorithm provided by external library
+ * 'com.vividsolutions:jts:1.13' library (implementation of Java Topology Suite)
+ */
 public class IncrementalDelaunayService implements IDelaunayService {
 
+    /**
+     * Methode to calculate Delaunay triangles form list of points
+     * @param triangleList list of points which need to be triangulated
+     * @return list of Delaunay triangles
+     */
     @Override
     public List<Triangle> calculate(List<Point> triangleList) {
         final Map<Coordinate, Point> coordinatePointMap = Maps.newLinkedHashMap();
@@ -32,10 +42,14 @@ public class IncrementalDelaunayService implements IDelaunayService {
             }
         });
 
+        //create DelaunayTriangleBuilder
         final DelaunayTriangulationBuilder delaunayBuilder = new DelaunayTriangulationBuilder();
         delaunayBuilder.setSites(coordinateList);
+
+        //use builder to calculate triangles
         final Geometry triangles = delaunayBuilder.getTriangles(new GeometryFactory());
 
+        //convert Geometry data structure to list of triangles
         for (int i = 0; i < triangles.getNumGeometries(); i++) {
             final List<Point> trianglePointList = Lists.newArrayList();
             final Triangle triangle = new Triangle(trianglePointList);

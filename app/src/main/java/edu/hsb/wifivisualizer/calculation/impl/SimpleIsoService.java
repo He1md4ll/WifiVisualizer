@@ -26,7 +26,6 @@ public class SimpleIsoService implements IIsoService {
     private static final int MAX_SIGNAL_STRENGTH = 0;
     private static final int MIN_SIGNAL_STRENGTH = -100;
 
-    @Override
     /**
      * Method to calculate isolines
      * @param triangleList all triangles the algorithm is marching through
@@ -34,6 +33,7 @@ public class SimpleIsoService implements IIsoService {
      * @param ssid name of ssid to filter for specific networks
      * @return List of all calculated Isolines
      */
+    @Override
     public List<Isoline> extractIsolines(List<Triangle> triangleList, List<Integer> isoValues, String ssid) {
         final List<Isoline> isolineList = Lists.newArrayList();
 
